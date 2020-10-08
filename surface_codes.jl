@@ -137,6 +137,41 @@ function measure!(QS::QuantumState, qubit::Int64)
     end
 end
 
+function oneNorm(vector::Array{Float64,1})
+    one_norm_vector = 0.0
+    for i in vector
+        one_norm_vector += abs(i)
+    end
+    return one_norm_vector
+end
+
+function probDistribution(quasi_prob::Array{Float64,1})
+    prob = zeros(0)
+    quasi_prob_norm = oneNorm(quasi_prob)
+    for i in quasi_prob
+        append!(prob, abs(i)/quasi_prob_norm)
+    end
+    return prob
+end
+
+function samplingDistribution(pdf::Array{Float64,1})
+    cdf = zeros(1)
+    for i = 1:length(pdf)
+        append!(cdf,cdf[i]+pdf[i])
+    end
+
+    random_value = rand()
+    idx = 0
+
+    for i = 1:length(cdf)
+        if random_value <= cdf[i]
+            idx = i - 1
+            break
+        end
+    end
+    return idx
+end
+
 function generate_graph(n::Int64)
     d::Int64 = n
     dim::Int64 = 2*d - 1
@@ -175,23 +210,46 @@ function generate_graph(n::Int64)
     return graph_dict
 end
 
-function main()
-    d::Int64 = 2
-    total_qubits::Int64 = (2*d-1)^2
-    QS = QuantumState(total_qubits)
-    graph = generate_graph(d)
-    apply_x!(QS,3)
-    apply_x!(QS,7)
-    apply_x!(QS,1)
-    for i = 1:total_qubits
-        if i%2 == 0
-            for j in graph[i]
-                apply_cnot!(QS,j,i)
+function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
+    measurement::Vector{Int64})
+    for i in x_ancillas
+        apply_h!(QS,i)
+        for j = 1:length(graph[i])
+            for k = 1:length(graph[i])
+                if j == k
+                    apply_cnot!(QS,i,graph[i][j])
+                end
             end
-            println(i)
-            println(measure!(QS,i))
         end
+        apply_h!(QS,i)
+        measurement[i] = measure!(QS,i)
     end
 end
 
-main()
+function circuit_z_ancilla!(QS::QuantumState, graph::Dict, z_ancillas::Vector{Int64}, 
+    measurement::Vector{Int64})
+    for i in z_ancillas
+        for j = 1:length(graph[i])
+            for k = 1:length(graph[i])
+                if j == k
+                    apply_cnot!(QS,graph[i][j],i)
+                end
+            end
+        end
+        measurement[i] = measure!(QS,i)
+    end
+end
+
+function main()
+    d::Int64 = 3
+    total_qubits::Int64 = (2*d-1)^2
+    QS = QuantumState(total_qubits)
+    graph::Dict = generate_graph(d)
+    measurement_values::Vector{Int64} = zeros(Int64, total_qubits)
+    x_ancilla_list::Vector{Int64} = [2,4,12,14,22,24]
+    z_ancilla_list::Vector{Int64} = [6,8,10,16,18,20]
+    circuit_x_ancilla!(QS, graph, x_ancilla_list, measurement_values)
+    circuit_z_ancilla!(QS, graph, z_ancilla_list, measurement_values)
+    return reshape(measurement_values, (5,5))
+end
+
