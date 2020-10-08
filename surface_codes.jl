@@ -219,28 +219,40 @@ function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
 end
 
 function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
-    measurement::Vector{Int64})
+    measurement::Vector{Int64}, pdf::Vector{Float64})
     for i in x_ancillas
         apply_h!(QS,i)
+        sampled_gate = samplingDistribution(pdf)
+        gateOperation!(QS,sampled_gate,i)
         for j = 1:length(graph[i])
             for k = 1:length(graph[i])
                 if j == k
                     apply_cnot!(QS,i,graph[i][j])
+                    sampled_gate = samplingDistribution(pdf)
+                    gateOperation!(QS,sampled_gate,i)
+                    sampled_gate = samplingDistribution(pdf)
+                    gateOperation!(QS,sampled_gate,j)
                 end
             end
         end
         apply_h!(QS,i)
+        sampled_gate = samplingDistribution(pdf)
+        gateOperation!(QS,sampled_gate,i)
         measurement[i] = measure!(QS,i)
     end
 end
 
 function circuit_z_ancilla!(QS::QuantumState, graph::Dict, z_ancillas::Vector{Int64}, 
-    measurement::Vector{Int64})
+    measurement::Vector{Int64}, pdf::Vector{Float64})
     for i in z_ancillas
         for j = 1:length(graph[i])
             for k = 1:length(graph[i])
                 if j == k
                     apply_cnot!(QS,graph[i][j],i)
+                    sampled_gate = samplingDistribution(pdf)
+                    gateOperation!(QS,sampled_gate,i)
+                    sampled_gate = samplingDistribution(pdf)
+                    gateOperation!(QS,sampled_gate,j)
                 end
             end
         end
@@ -257,18 +269,16 @@ function main()
     data_qubits_list::Vector{Int64} = [1,3,5,7,9,11,13,15,17,19,21,23,25]
     x_ancilla_list::Vector{Int64} = [2,4,12,14,22,24]
     z_ancilla_list::Vector{Int64} = [6,8,10,16,18,20]
-    gamma::Float64 = 0.1
+    gamma::Float64 = 0.01
     coeff_gates::Vector{Float64} = [(1.0-gamma)/2+sqrt(1.0-gamma)/2, (1.0-gamma)/2-sqrt(1.0-gamma)/2, gamma]
     prob_distribution::Vector{Float64} = probDistribution(coeff_gates)
-    display(prob_distribution)
-    circuit_z_ancilla!(QS, graph, z_ancilla_list, measurement_values)
+    circuit_z_ancilla!(QS, graph, z_ancilla_list, measurement_values, prob_distribution)
     for i in data_qubits_list
         apply_h!(QS,i)
         sampled_gate = samplingDistribution(prob_distribution)
-        display(sampled_gate)
         gateOperation!(QS,sampled_gate,i)
     end
-    circuit_x_ancilla!(QS, graph, x_ancilla_list, measurement_values)
+    circuit_x_ancilla!(QS, graph, x_ancilla_list, measurement_values, prob_distribution)
     for j in data_qubits_list
         apply_h!(QS,j)
     end
