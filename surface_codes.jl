@@ -259,21 +259,21 @@ function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
     end
 end
 
-function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict, 
-    x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
-    # prepare the x_ancillas in the |+> state
+function prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64})
     for i in x_ancilla_list
         apply_h!(QS,i)
     end
+end
 
-    # carry out the measurement circuits
-    # North
+function north_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::Vector{Int64})
     for j in z_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j-1, j)
         end
     end
+end
 
+function north_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::Vector{Int64})
     for j in x_ancilla_list
         if j-1 in graph[j]
             apply_h!(QS, j-1)
@@ -281,14 +281,17 @@ function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict,
             apply_h!(QS, j-1)
         end
     end
+end
 
-    # West
+function west_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancilla_list::Vector{Int64})
     for j in z_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j-(2*d-1), j)
         end
     end
+end
 
+function west_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancilla_list::Vector{Int64})
     for j in x_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_h!(QS, j-(2*d-1))
@@ -296,14 +299,17 @@ function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict,
             apply_h!(QS, j-(2*d-1))
         end
     end
+end
 
-    # East
+function east_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancilla_list::Vector{Int64})
     for j in z_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j+(2*d-1), j)
         end
     end
+end
 
+function east_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancilla_list::Vector{Int64})
     for j in x_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_h!(QS, j+(2*d-1))
@@ -311,14 +317,17 @@ function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict,
             apply_h!(QS, j+(2*d-1))
         end
     end
+end
 
-    # South
+function south_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::Vector{Int64})
     for j in z_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j+1, j)
         end
     end
+end
 
+function south_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::Vector{Int64})
     for j in x_ancilla_list
         if j+1 in graph[j]
             apply_h!(QS, j+1)
@@ -326,6 +335,47 @@ function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict,
             apply_h!(QS, j+1)
         end
     end
+end
+
+function apply_noise!(QS::QuantumState, noise::Int64, qubit::Int64)
+    if noise == 2
+        apply_x!(QS, qubit)
+    elseif noise == 3 
+        apply_y!(QS, qubit)
+    elseif noise == 4
+        apply_z!(QS, qubit)
+    elseif noise == 5
+        apply_s!(QS, qubit)
+    else noise == 6
+        apply_Rz!(QS, qubit)
+    end
+end
+
+function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict, 
+    x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
+    # prepare the x_ancillas in the |+> state
+    prep_x_ancillas!(QS, x_ancilla_list)
+
+    # carry out the measurement circuits
+    # North
+    north_z_ancillas!(QS, graph, z_ancilla_list)
+
+    north_x_ancillas!(QS, graph, x_ancilla_list)
+
+    # West
+    west_z_ancillas!(QS, d, graph, z_ancilla_list)
+
+    west_x_ancillas!(QS, d, graph, x_ancilla_list)
+
+    # East
+    east_z_ancillas!(QS, d, graph, z_ancilla_list)
+
+    east_x_ancillas!(QS, d, graph, x_ancilla_list)
+
+    # South
+    south_z_ancillas!(QS, graph, z_ancilla_list)
+
+    south_x_ancillas!(QS, graph, x_ancilla_list) 
 
     # measurement of the x_ancillas is the x basis
     for l in x_ancilla_list
@@ -340,12 +390,10 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     # initialize 
 
     which_ancilla::Vector{Int64} = [0,1]
-    num_ancillas::UnitRange{Int64} = range(1,d*(d-1))
+    num_ancillas::UnitRange{Int64} = range(1, length = d*(d-1))
     x_depth::Vector{Int64} = [1,2,3,4,5,6]
     z_depth::Vector{Int64} = [1,2,3,4]
     error::Vector{Int64} = [1,2,3,4] # 1 -> I, 2 -> X, 3 -> Y, 4 -> Z 
-    measurement_cycle1::Vector{Int64} = initial_measurement_values
-    measurement_cycle2::Vector{Int64} = initial_measurement_values
     G_x = Graph(length(x_ancilla_list)+2*d)
     G_z = Graph(length(z_ancilla_list)+2*d)
 
@@ -359,43 +407,112 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     end
 
     # noisy measurement circuit (enumerate through all possible single errors)
-    for i in which_ancilla
+    for i = 0:0 #in which_ancilla
         if i == 0
             # error in one of the x_ancilla circuits
-            for j in num_ancillas
+            for j = 3:3 #in num_ancillas
                 # error during one of the 6 timesteps
-                if j == 1
-                    
+                for k = 1:1 #in x_depth
+                    if k == 1
+                        # noisy hadamard gate
+                        for l = 3:3 #in error
+                            qs = deepcopy(QS)
+                            measurement_cycle1 = deepcopy(initial_measurement_values)
+                            measurement_cycle2 = deepcopy(initial_measurement_values)
+                            prep_x_ancillas!(qs, x_ancilla_list)
+                            apply_noise!(qs, l, x_ancilla_list[j])
+                            # carry out the measurement circuits
+                            north_z_ancillas!(qs, graph, z_ancilla_list)
+                            north_x_ancillas!(qs, graph, x_ancilla_list)
+                            west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                            west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                            east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                            east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                            south_z_ancillas!(qs, graph, z_ancilla_list)
+                            south_x_ancillas!(qs, graph, x_ancilla_list) 
+                            for m in x_ancilla_list
+                                apply_h!(qs,m)
+                            end
+                            # ancilla measurement for cycle1
+                            for i in x_ancilla_list
+                                measurement_cycle1[i] = measure!(qs,i)
+                            end
 
+                            for j in z_ancilla_list
+                                measurement_cycle1[j] = measure!(qs,j)
+                            end
+
+                            # ideal measurement circuit
+                            measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                            # ancilla measurement for cycle2
+                            for i in x_ancilla_list
+                                measurement_cycle2[i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle2[j] = measure!(qs,j)
+                            end
+                            display(reshape(initial_measurement_values, (5,5)))
+                            display(reshape(measurement_cycle1, (5,5)))
+                            display(reshape(measurement_cycle2, (5,5)))
+                        end
+                    elseif k == 2
+                        for l in error
+                            for m in error
+                                qs = deepcopy(QS)
+                            measurement_cycle1 = deepcopy(initial_measurement_values)
+                            measurement_cycle2 = deepcopy(initial_measurement_values)
+                            prep_x_ancillas!(qs, x_ancilla_list)
+                            # carry out the measurement circuits
+                            north_z_ancillas!(qs, graph, z_ancilla_list)
+                            north_x_ancillas!(qs, graph, x_ancilla_list)
+                            west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                            west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                            east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                            east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                            south_z_ancillas!(qs, graph, z_ancilla_list)
+                            south_x_ancillas!(qs, graph, x_ancilla_list) 
+                            for m in x_ancilla_list
+                                apply_h!(qs,m)
+                            end
+                            # ancilla measurement for cycle1
+                            for i in x_ancilla_list
+                                measurement_cycle1[i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle1[j] = measure!(qs,j)
+                            end
+
+                            # ideal measurement circuit
+                            measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                            # ancilla measurement for cycle2
+                            for i in x_ancilla_list
+                                measurement_cycle2[i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle2[j] = measure!(qs,j)
+                            end
+                            display(reshape(initial_measurement_values, (5,5)))
+                            display(reshape(measurement_cycle1, (5,5)))
+                            display(reshape(measurement_cycle2, (5,5)))
+
+                    end
+                end
+            end     
         else
             # error in one of the z_ancilla circuits
         end
     end
 
-    # ancilla measurement for cycle1
-    for i in x_ancilla_list
-        measurement_cycle1[i] = measure!(QS,i)
-    end
-
-    for j in z_ancilla_list
-        measurement_cycle1[j] = measure!(QS,j)
-    end
-
-    # ideal measurement circuit
-    measurement_circuit(QS, d, graph, x_ancilla_list, z_ancilla_list)
-
-    # ancilla measurement for cycle2
-    for i in x_ancilla_list
-        measurement_cycle2[i] = measure!(QS,i)
-    end
-
-    for j in z_ancilla_list
-        measurement_cycle2[j] = measure!(QS,j)
-    end
+    
 
 
-    gplot(G_x, nodelabel=1:length(x_ancilla_list)+2*d)
-    gplot(G_z, nodelabel=1:length(z_ancilla_list)+2*d)
+    # gplot(G_x, nodelabel=1:length(x_ancilla_list)+2*d)
+    # gplot(G_z, nodelabel=1:length(z_ancilla_list)+2*d)
 
 end
 function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
@@ -486,4 +603,3 @@ function graph()
 
     gplot(G, nodelabel=1:8)
 end
-
