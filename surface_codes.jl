@@ -1,6 +1,11 @@
 using LinearAlgebra
 using DelimitedFiles
 using Statistics
+using LightGraphs
+using GraphPlot
+using Compose
+using Gadfly
+import Cairo, Fontconfig
 
 mutable struct QuantumState
     tableau::Matrix
@@ -172,11 +177,11 @@ function samplingDistribution(pdf::Array{Float64,1})
     return idx
 end
 
-function generate_graph(n::Int64)
+function generate_connections(n::Int64)
     d::Int64 = n
     dim::Int64 = 2*d - 1
     total_qubits::Int64 = dim*dim
-    graph_dict = Dict{Int64,Array{Int64,1}}()
+    connections_dict = Dict{Int64,Array{Int64,1}}()
     for i = 1:total_qubits
         list_connections::Array{Int64,1} = []
         if i%dim == 0
@@ -205,9 +210,45 @@ function generate_graph(n::Int64)
                 append!(list_connections,i+dim)
             end
         end
-        push!(graph_dict, i => list_connections)
+        push!(connections_dict, i => list_connections)
     end
-    return graph_dict
+    return connections_dict
+end
+
+function generate_data_qubits(total_qubits::Int64)
+    data_qubits::Array{Int64,1} = []
+    for i = 1:total_qubits
+        if i%2 != 0
+            append!(data_qubits, i)
+        end
+    end
+    return data_qubits
+end
+
+function generate_x_ancillas(d::Int64, total_qubits::Int64)
+    x_ancillas::Array{Int64,1} = []
+    for i = 1:d-1
+        append!(x_ancillas, 2*i)
+    end
+    for j in x_ancillas
+        if j + 4*d - 2 < total_qubits
+            append!(x_ancillas, j + 4*d - 2)
+        end
+    end
+    return x_ancillas
+end
+
+function generate_z_ancillas(d::Int64, total_qubits::Int64)
+    z_ancillas::Array{Int64,1} = [2*d]
+    for i = 1:d-1
+        append!(z_ancillas, z_ancillas[end] + 2)
+    end
+    for j in z_ancillas
+        if j + 4*d - 2  < total_qubits
+            append!(z_ancillas, j + 4*d - 2)
+        end
+    end
+    return z_ancillas
 end
 
 function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
@@ -218,6 +259,145 @@ function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
     end
 end
 
+function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict, 
+    x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
+    # prepare the x_ancillas in the |+> state
+    for i in x_ancilla_list
+        apply_h!(QS,i)
+    end
+
+    # carry out the measurement circuits
+    # North
+    for j in z_ancilla_list
+        if j-1 in graph[j]
+            apply_cnot!(QS, j-1, j)
+        end
+    end
+
+    for j in x_ancilla_list
+        if j-1 in graph[j]
+            apply_h!(QS, j-1)
+            apply_cnot!(QS, j, j-1)
+            apply_h!(QS, j-1)
+        end
+    end
+
+    # West
+    for j in z_ancilla_list
+        if j-(2*d-1) in graph[j]
+            apply_cnot!(QS, j-(2*d-1), j)
+        end
+    end
+
+    for j in x_ancilla_list
+        if j-(2*d-1) in graph[j]
+            apply_h!(QS, j-(2*d-1))
+            apply_cnot!(QS, j, j-(2*d-1))
+            apply_h!(QS, j-(2*d-1))
+        end
+    end
+
+    # East
+    for j in z_ancilla_list
+        if j+(2*d-1) in graph[j]
+            apply_cnot!(QS, j+(2*d-1), j)
+        end
+    end
+
+    for j in x_ancilla_list
+        if j+(2*d-1) in graph[j]
+            apply_h!(QS, j+(2*d-1))
+            apply_cnot!(QS, j, j+(2*d-1))
+            apply_h!(QS, j+(2*d-1))
+        end
+    end
+
+    # South
+    for j in z_ancilla_list
+        if j+1 in graph[j]
+            apply_cnot!(QS, j+1, j)
+        end
+    end
+
+    for j in x_ancilla_list
+        if j+1 in graph[j]
+            apply_h!(QS, j+1)
+            apply_cnot!(QS, j, j+1)
+            apply_h!(QS, j+1)
+        end
+    end
+
+    # measurement of the x_ancillas is the x basis
+    for l in x_ancilla_list
+        apply_h!(QS,l)
+    end
+end
+
+function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict, 
+    x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64},
+    initial_measurement_values::Vector{Int64})
+
+    # initialize 
+
+    which_ancilla::Vector{Int64} = [0,1]
+    num_ancillas::UnitRange{Int64} = range(1,d*(d-1))
+    x_depth::Vector{Int64} = [1,2,3,4,5,6]
+    z_depth::Vector{Int64} = [1,2,3,4]
+    error::Vector{Int64} = [1,2,3,4] # 1 -> I, 2 -> X, 3 -> Y, 4 -> Z 
+    measurement_cycle1::Vector{Int64} = initial_measurement_values
+    measurement_cycle2::Vector{Int64} = initial_measurement_values
+    G_x = Graph(length(x_ancilla_list)+2*d)
+    G_z = Graph(length(z_ancilla_list)+2*d)
+
+    # initial ancilla measurement
+    for i in x_ancilla_list
+        initial_measurement_values[i] = measure!(QS,i)
+    end
+
+    for j in z_ancilla_list
+        initial_measurement_values[j] = measure!(QS,j)
+    end
+
+    # noisy measurement circuit (enumerate through all possible single errors)
+    for i in which_ancilla
+        if i == 0
+            # error in one of the x_ancilla circuits
+            for j in num_ancillas
+                # error during one of the 6 timesteps
+                if j == 1
+                    
+
+        else
+            # error in one of the z_ancilla circuits
+        end
+    end
+
+    # ancilla measurement for cycle1
+    for i in x_ancilla_list
+        measurement_cycle1[i] = measure!(QS,i)
+    end
+
+    for j in z_ancilla_list
+        measurement_cycle1[j] = measure!(QS,j)
+    end
+
+    # ideal measurement circuit
+    measurement_circuit(QS, d, graph, x_ancilla_list, z_ancilla_list)
+
+    # ancilla measurement for cycle2
+    for i in x_ancilla_list
+        measurement_cycle2[i] = measure!(QS,i)
+    end
+
+    for j in z_ancilla_list
+        measurement_cycle2[j] = measure!(QS,j)
+    end
+
+
+    gplot(G_x, nodelabel=1:length(x_ancilla_list)+2*d)
+    gplot(G_z, nodelabel=1:length(z_ancilla_list)+2*d)
+
+end
 function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
     measurement::Vector{Int64}, pdf::Vector{Float64})
     for i in x_ancillas
@@ -260,28 +440,50 @@ function circuit_z_ancilla!(QS::QuantumState, graph::Dict, z_ancillas::Vector{In
     end
 end
 
-function main()
-    d::Int64 = 3
+function main(d::Int64)
+    # initialize values and get the connections between qubits and 
     total_qubits::Int64 = (2*d-1)^2
     QS = QuantumState(total_qubits)
-    graph::Dict = generate_graph(d)
+    connections::Dict = generate_connections(d)
     measurement_values::Vector{Int64} = zeros(Int64, total_qubits)
-    data_qubits_list::Vector{Int64} = [1,3,5,7,9,11,13,15,17,19,21,23,25]
-    x_ancilla_list::Vector{Int64} = [2,4,12,14,22,24]
-    z_ancilla_list::Vector{Int64} = [6,8,10,16,18,20]
-    gamma::Float64 = 0.05
-    coeff_gates::Vector{Float64} = [(1.0-gamma)/2+sqrt(1.0-gamma)/2, (1.0-gamma)/2-sqrt(1.0-gamma)/2, gamma]
-    prob_distribution::Vector{Float64} = probDistribution(coeff_gates)
-    circuit_z_ancilla!(QS, graph, z_ancilla_list, measurement_values, prob_distribution)
-    for i in data_qubits_list
-        apply_h!(QS,i)
-        sampled_gate = samplingDistribution(prob_distribution)
-        gateOperation!(QS,sampled_gate,i)
-    end
-    circuit_x_ancilla!(QS, graph, x_ancilla_list, measurement_values, prob_distribution)
-    for j in data_qubits_list
-        apply_h!(QS,j)
-    end
-    return reshape(measurement_values, (5,5))
+
+    # generate the different sets of qubits
+    data_qubits_list::Vector{Int64} = generate_data_qubits(total_qubits)
+    x_ancilla_list::Vector{Int64} = generate_x_ancillas(d, total_qubits)
+    z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)
+
+    generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
+    measurement_values)
+
+    # display(reshape(measurement_values, (5,5)))
+    # gamma::Float64 = 0.05
+    # coeff_gates::Vector{Float64} = [(1.0-gamma)/2+sqrt(1.0-gamma)/2, (1.0-gamma)/2-sqrt(1.0-gamma)/2, gamma]
+    # prob_distribution::Vector{Float64} = probDistribution(coeff_gates)
+    # circuit_z_ancilla!(QS, graph, z_ancilla_list, measurement_values, prob_distribution)
+    # for i in data_qubits_list
+    #     apply_h!(QS,i)
+    #     sampled_gate = samplingDistribution(prob_distribution)
+    #     gateOperation!(QS,sampled_gate,i)
+    # end
+    # circuit_x_ancilla!(QS, graph, x_ancilla_list, measurement_values, prob_distribution)
+    # for j in data_qubits_list
+    #     apply_h!(QS,j)
+    # end
+    # return reshape(measurement_values, (5,5))
+end
+
+function graph()
+    G = Graph(8)
+    add_edge!(G, 1, 2)
+    add_edge!(G, 1, 2)
+    add_edge!(G, 2, 3)
+    add_edge!(G, 3, 4)
+    add_edge!(G, 1, 4)
+    add_edge!(G, 1, 5)
+    add_edge!(G, 2, 6)
+    add_edge!(G, 3, 7)
+    add_edge!(G, 4, 8)
+
+    gplot(G, nodelabel=1:8)
 end
 
