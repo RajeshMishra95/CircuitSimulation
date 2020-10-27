@@ -351,7 +351,7 @@ function apply_noise!(QS::QuantumState, noise::Int64, qubit::Int64)
     end
 end
 
-function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict, 
+function measurement_circuit!(QS::QuantumState, d::Int64, graph::Dict, 
     x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
     # prepare the x_ancillas in the |+> state
     prep_x_ancillas!(QS, x_ancilla_list)
@@ -383,6 +383,36 @@ function measurement_circuit(QS::QuantumState, d::Int64, graph::Dict,
     end
 end
 
+function find_fault(timestep1::Vector{Int64}, timestep2::Vector{Int64}, 
+    x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
+    x_ancilla_values::Vector{Int64} = []
+    z_ancilla_values::Vector{Int64} = []
+    x_fault::Vector{Int64} = []
+    z_fault::Vector{Int64} = []
+
+    for i in x_ancilla_list
+        append!(x_ancilla_values, timestep1[i])
+    end
+    for i in x_ancilla_list
+        append!(x_ancilla_values, timestep2[i])
+    end
+    for i in z_ancilla_list
+        append!(z_ancilla_values, timestep1[i])
+    end
+    for i in z_ancilla_list
+        append!(z_ancilla_values, timestep2[i])
+    end
+
+    if -1 in x_ancilla_values
+        x_fault = findall(x -> x == -1, x_ancilla_values)
+    end
+    if -1 in z_ancilla_values
+        z_fault = findall(z -> z == -1, z_ancilla_values)
+    end
+
+    return (x_fault, z_fault)
+end
+
 function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict, 
     x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64},
     initial_measurement_values::Vector{Int64})
@@ -394,8 +424,8 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     x_depth::Vector{Int64} = [1,2,3,4,5,6]
     z_depth::Vector{Int64} = [2,3,4,5]
     error::Vector{Int64} = [1,2,3,4] # 1 -> I, 2 -> X, 3 -> Y, 4 -> Z 
-    G_x = Graph(length(x_ancilla_list)+2*d)
-    G_z = Graph(length(z_ancilla_list)+2*d)
+    G_x = Graph(2*length(x_ancilla_list)+4*d)
+    G_z = Graph(2*length(z_ancilla_list)+4*d)
 
     # initial ancilla measurement
     for i in x_ancilla_list
@@ -407,15 +437,15 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     end
 
     # noisy measurement circuit (enumerate through all possible single errors)
-    for i in which_ancilla
+    for i = 0:0 #in which_ancilla
         if i == 0
             # error in one of the x_ancilla circuits
-            for j in num_ancillas
+            for j = 1:1 #in num_ancillas
                 # error during one of the 6 timesteps
-                for k in x_depth
+                for k = 1:1 #in x_depth
                     if k == 1
                         # noisy hadamard gate
-                        for l in error
+                        for l = 3:3 #in error
                             qs = deepcopy(QS)
                             measurement_cycle1 = deepcopy(initial_measurement_values)
                             measurement_cycle2 = deepcopy(initial_measurement_values)
@@ -443,7 +473,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             end
 
                             # ideal measurement circuit
-                            measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                            measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                             # ancilla measurement for cycle2
                             for i in x_ancilla_list
@@ -456,6 +486,8 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             display(reshape(initial_measurement_values, (5,5)))
                             display(reshape(measurement_cycle1, (5,5)))
                             display(reshape(measurement_cycle2, (5,5)))
+                            println(find_fault(measurement_cycle1, measurement_cycle2, 
+                            x_ancilla_list, z_ancilla_list))
                         end
                     elseif k == 2
                         for l in error
@@ -490,7 +522,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
 
                                 # ideal measurement circuit
-                                measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
@@ -538,7 +570,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
 
                                 # ideal measurement circuit
-                                measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
@@ -586,7 +618,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
 
                                 # ideal measurement circuit
-                                measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
@@ -634,7 +666,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
 
                                 # ideal measurement circuit
-                                measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
@@ -679,7 +711,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             end
 
                             # ideal measurement circuit
-                            measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                            measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                             # ancilla measurement for cycle2
                             for i in x_ancilla_list
@@ -734,7 +766,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
 
                                 # ideal measurement circuit
-                                measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
@@ -782,7 +814,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
 
                                 # ideal measurement circuit
-                                measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
@@ -830,7 +862,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
 
                                 # ideal measurement circuit
-                                measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
@@ -878,7 +910,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
 
                                 # ideal measurement circuit
-                                measurement_circuit(qs, d, graph, x_ancilla_list, z_ancilla_list)
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
