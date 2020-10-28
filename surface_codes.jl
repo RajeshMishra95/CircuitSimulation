@@ -346,7 +346,7 @@ function apply_noise!(QS::QuantumState, noise::Int64, qubit::Int64)
         apply_z!(QS, qubit)
     elseif noise == 5
         apply_s!(QS, qubit)
-    else noise == 6
+    elseif noise == 6
         apply_Rz!(QS, qubit)
     end
 end
@@ -424,8 +424,8 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     x_depth::Vector{Int64} = [1,2,3,4,5,6]
     z_depth::Vector{Int64} = [2,3,4,5]
     error::Vector{Int64} = [1,2,3,4] # 1 -> I, 2 -> X, 3 -> Y, 4 -> Z 
-    G_x = Graph(2*length(x_ancilla_list)+4*d)
-    G_z = Graph(2*length(z_ancilla_list)+4*d)
+    G_x = SimpleGraph(length(x_ancilla_list)+2*d)
+    G_z = SimpleGraph(length(z_ancilla_list)+2*d)
 
     # initial ancilla measurement
     for i in x_ancilla_list
@@ -437,15 +437,15 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     end
 
     # noisy measurement circuit (enumerate through all possible single errors)
-    for i = 0:0 #in which_ancilla
+    for i = 1:1 #in which_ancilla
         if i == 0
             # error in one of the x_ancilla circuits
             for j = 1:1 #in num_ancillas
                 # error during one of the 6 timesteps
-                for k = 1:1 #in x_depth
+                for k = 2:2 #in x_depth
                     if k == 1
                         # noisy hadamard gate
-                        for l = 3:3 #in error
+                        for l in error
                             qs = deepcopy(QS)
                             measurement_cycle1 = deepcopy(initial_measurement_values)
                             measurement_cycle2 = deepcopy(initial_measurement_values)
@@ -483,15 +483,18 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for j in z_ancilla_list
                                 measurement_cycle2[j] = measure!(qs,j)
                             end
-                            display(reshape(initial_measurement_values, (5,5)))
-                            display(reshape(measurement_cycle1, (5,5)))
-                            display(reshape(measurement_cycle2, (5,5)))
-                            println(find_fault(measurement_cycle1, measurement_cycle2, 
-                            x_ancilla_list, z_ancilla_list))
+                            edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                            x_ancilla_list, z_ancilla_list)
+                            if length(edges[1]) == 2
+                                add_edge!(G_x, edges[1][1], edges[1][2])
+                            end
+                            if length(edges[2]) == 2
+                                add_edge!(G_z, edges[2][1], edges[2][2])
+                            end
                         end
                     elseif k == 2
-                        for l in error
-                            for m in error
+                        for l = 1:1 #in error
+                            for m = 1:1 #in error
                                 qs = deepcopy(QS)
                                 measurement_cycle1 = deepcopy(initial_measurement_values)
                                 measurement_cycle2 = deepcopy(initial_measurement_values)
@@ -500,8 +503,10 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
                                 north_x_ancillas!(qs, graph, x_ancilla_list)
                                 if x_ancilla_list[j] - 1 in graph[x_ancilla_list[j]]
+                                    #apply_h!(qs, x_ancilla_list[j]-1)
                                     apply_noise!(qs, l, x_ancilla_list[j])
                                     apply_noise!(qs, m, x_ancilla_list[j] - 1)
+                                    #apply_h!(qs, x_ancilla_list[j]-1)
                                 end
                                 west_z_ancillas!(qs, d, graph, z_ancilla_list)
                                 west_x_ancillas!(qs, d, graph, x_ancilla_list)
@@ -535,6 +540,14 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 display(reshape(initial_measurement_values, (5,5)))
                                 display(reshape(measurement_cycle1, (5,5)))
                                 display(reshape(measurement_cycle2, (5,5)))
+                                edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                                x_ancilla_list, z_ancilla_list)
+                                if length(edges[1]) == 2
+                                    add_edge!(G_x, edges[1][1], edges[1][2])
+                                end
+                                if length(edges[2]) == 2
+                                    add_edge!(G_z, edges[2][1], edges[2][2])
+                                end
                             end
                         end
                     elseif k == 3 
@@ -580,9 +593,14 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                display(reshape(initial_measurement_values, (5,5)))
-                                display(reshape(measurement_cycle1, (5,5)))
-                                display(reshape(measurement_cycle2, (5,5)))
+                                edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                                x_ancilla_list, z_ancilla_list)
+                                if length(edges[1]) == 2
+                                    add_edge!(G_x, edges[1][1], edges[1][2])
+                                end
+                                if length(edges[2]) == 2
+                                    add_edge!(G_z, edges[2][1], edges[2][2])
+                                end
                             end
                         end
                     elseif k == 4
@@ -628,9 +646,14 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                display(reshape(initial_measurement_values, (5,5)))
-                                display(reshape(measurement_cycle1, (5,5)))
-                                display(reshape(measurement_cycle2, (5,5)))
+                                edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                                x_ancilla_list, z_ancilla_list)
+                                if length(edges[1]) == 2
+                                    add_edge!(G_x, edges[1][1], edges[1][2])
+                                end
+                                if length(edges[2]) == 2
+                                    add_edge!(G_z, edges[2][1], edges[2][2])
+                                end
                             end
                         end
                     elseif k == 5
@@ -676,9 +699,14 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                display(reshape(initial_measurement_values, (5,5)))
-                                display(reshape(measurement_cycle1, (5,5)))
-                                display(reshape(measurement_cycle2, (5,5)))
+                                edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                                x_ancilla_list, z_ancilla_list)
+                                if length(edges[1]) == 2
+                                    add_edge!(G_x, edges[1][1], edges[1][2])
+                                end
+                                if length(edges[2]) == 2
+                                    add_edge!(G_z, edges[2][1], edges[2][2])
+                                end
                             end
                         end
                     else
@@ -721,9 +749,14 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for j in z_ancilla_list
                                 measurement_cycle2[j] = measure!(qs,j)
                             end
-                            display(reshape(initial_measurement_values, (5,5)))
-                            display(reshape(measurement_cycle1, (5,5)))
-                            display(reshape(measurement_cycle2, (5,5)))
+                            edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                            x_ancilla_list, z_ancilla_list)
+                            if length(edges[1]) == 2
+                                add_edge!(G_x, edges[1][1], edges[1][2])
+                            end
+                            if length(edges[2]) == 2
+                                add_edge!(G_z, edges[2][1], edges[2][2])
+                            end
                         end 
                     end
                 end
@@ -776,9 +809,17 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                display(reshape(initial_measurement_values, (5,5)))
-                                display(reshape(measurement_cycle1, (5,5)))
-                                display(reshape(measurement_cycle2, (5,5)))
+                                # display(reshape(initial_measurement_values, (5,5)))
+                                # display(reshape(measurement_cycle1, (5,5)))
+                                # display(reshape(measurement_cycle2, (5,5)))
+                                edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                                x_ancilla_list, z_ancilla_list)
+                                if length(edges[1]) == 2
+                                    add_edge!(G_x, edges[1][1], edges[1][2])
+                                end
+                                if length(edges[2]) == 2
+                                    add_edge!(G_z, edges[2][1], edges[2][2])
+                                end
                             end
                         end
                     elseif k == 3 
@@ -824,9 +865,17 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                display(reshape(initial_measurement_values, (5,5)))
-                                display(reshape(measurement_cycle1, (5,5)))
-                                display(reshape(measurement_cycle2, (5,5)))
+                                # display(reshape(initial_measurement_values, (5,5)))
+                                # display(reshape(measurement_cycle1, (5,5)))
+                                # display(reshape(measurement_cycle2, (5,5)))
+                                edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                                x_ancilla_list, z_ancilla_list)
+                                if length(edges[1]) == 2
+                                    add_edge!(G_x, edges[1][1], edges[1][2])
+                                end
+                                if length(edges[2]) == 2
+                                    add_edge!(G_z, edges[2][1], edges[2][2])
+                                end
                             end
                         end
                     elseif k == 4
@@ -872,9 +921,14 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                display(reshape(initial_measurement_values, (5,5)))
-                                display(reshape(measurement_cycle1, (5,5)))
-                                display(reshape(measurement_cycle2, (5,5)))
+                                edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                                x_ancilla_list, z_ancilla_list)
+                                if length(edges[1]) == 2
+                                    add_edge!(G_x, edges[1][1], edges[1][2])
+                                end
+                                if length(edges[2]) == 2
+                                    add_edge!(G_z, edges[2][1], edges[2][2])
+                                end
                             end
                         end
                     elseif k == 5
@@ -920,9 +974,14 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                display(reshape(initial_measurement_values, (5,5)))
-                                display(reshape(measurement_cycle1, (5,5)))
-                                display(reshape(measurement_cycle2, (5,5)))
+                                edges = find_fault(measurement_cycle1, measurement_cycle2, 
+                                x_ancilla_list, z_ancilla_list)
+                                if length(edges[1]) == 2
+                                    add_edge!(G_x, edges[1][1], edges[1][2])
+                                end
+                                if length(edges[2]) == 2
+                                    add_edge!(G_z, edges[2][1], edges[2][2])
+                                end
                             end
                         end 
                     end
@@ -934,8 +993,9 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     
 
 
-    # gplot(G_x, nodelabel=1:length(x_ancilla_list)+2*d)
-    # gplot(G_z, nodelabel=1:length(z_ancilla_list)+2*d)
+    display(adjacency_matrix(G_x))
+    display(adjacency_matrix(G_z))
+    gplot(G_z, nodelabel=1:length(x_ancilla_list)+2*d)
 
 end
 function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
@@ -1026,3 +1086,5 @@ function graph()
 
     gplot(G, nodelabel=1:8)
 end
+
+main(3)
