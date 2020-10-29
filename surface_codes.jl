@@ -6,6 +6,8 @@ using GraphPlot
 using Compose
 using Gadfly
 import Cairo, Fontconfig
+using SparseArrays
+using CSV
 
 mutable struct QuantumState
     tableau::Matrix
@@ -424,8 +426,8 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     x_depth::Vector{Int64} = [1,2,3,4,5,6]
     z_depth::Vector{Int64} = [2,3,4,5]
     error::Vector{Int64} = [1,2,3,4] # 1 -> I, 2 -> X, 3 -> Y, 4 -> Z 
-    G_x = SimpleGraph(length(x_ancilla_list)+2*d)
-    G_z = SimpleGraph(length(z_ancilla_list)+2*d)
+    G_x = SimpleGraph(2*length(x_ancilla_list)+4*d)
+    G_z = SimpleGraph(2*length(z_ancilla_list)+4*d)
 
     # initial ancilla measurement
     for i in x_ancilla_list
@@ -437,12 +439,12 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     end
 
     # noisy measurement circuit (enumerate through all possible single errors)
-    for i = 1:1 #in which_ancilla
+    for i in which_ancilla
         if i == 0
             # error in one of the x_ancilla circuits
-            for j = 1:1 #in num_ancillas
+            for j in num_ancillas
                 # error during one of the 6 timesteps
-                for k = 2:2 #in x_depth
+                for k in x_depth
                     if k == 1
                         # noisy hadamard gate
                         for l in error
@@ -493,8 +495,8 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             end
                         end
                     elseif k == 2
-                        for l = 1:1 #in error
-                            for m = 1:1 #in error
+                        for l in error
+                            for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle1 = deepcopy(initial_measurement_values)
                                 measurement_cycle2 = deepcopy(initial_measurement_values)
@@ -503,10 +505,8 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
                                 north_x_ancillas!(qs, graph, x_ancilla_list)
                                 if x_ancilla_list[j] - 1 in graph[x_ancilla_list[j]]
-                                    #apply_h!(qs, x_ancilla_list[j]-1)
                                     apply_noise!(qs, l, x_ancilla_list[j])
                                     apply_noise!(qs, m, x_ancilla_list[j] - 1)
-                                    #apply_h!(qs, x_ancilla_list[j]-1)
                                 end
                                 west_z_ancillas!(qs, d, graph, z_ancilla_list)
                                 west_x_ancillas!(qs, d, graph, x_ancilla_list)
@@ -537,9 +537,6 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                display(reshape(initial_measurement_values, (5,5)))
-                                display(reshape(measurement_cycle1, (5,5)))
-                                display(reshape(measurement_cycle2, (5,5)))
                                 edges = find_fault(measurement_cycle1, measurement_cycle2, 
                                 x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
@@ -809,9 +806,6 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                # display(reshape(initial_measurement_values, (5,5)))
-                                # display(reshape(measurement_cycle1, (5,5)))
-                                # display(reshape(measurement_cycle2, (5,5)))
                                 edges = find_fault(measurement_cycle1, measurement_cycle2, 
                                 x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
@@ -990,12 +984,30 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
         end
     end
 
-    
+    for i in range(1, length = 2*d*(d-1))
+        add_edge!(G_x, i, 2*d*(d-1) + i)
+        add_edge!(G_z, i, 2*d*(d-1) + i)
+    end
 
+    CSC_G_x = findnz(adjacency_matrix(G_x))
+    CSC_G_z = findnz(adjacency_matrix(G_z))
+    open("CSV_G_vertex.txt", "w") do f
+        for i in CSC_G_x
+            println(f, i)
+        end
+    end
 
-    display(adjacency_matrix(G_x))
-    display(adjacency_matrix(G_z))
-    gplot(G_z, nodelabel=1:length(x_ancilla_list)+2*d)
+    open("CSV_G_plaquette.txt", "w") do f
+        for i in CSC_G_z
+            println(f, i)
+        end
+    end
+
+    # display(adjacency_matrix(G_x))
+    # display(adjacency_matrix(G_z))
+
+    # gplot(G_z, nodelabel=1:2*length(x_ancilla_list)+4*d)
+    # gplot(G_x, nodelabel=1:length(x_ancilla_list)+2*d)
 
 end
 function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
@@ -1070,21 +1082,6 @@ function main(d::Int64)
     #     apply_h!(QS,j)
     # end
     # return reshape(measurement_values, (5,5))
-end
-
-function graph()
-    G = Graph(8)
-    add_edge!(G, 1, 2)
-    add_edge!(G, 1, 2)
-    add_edge!(G, 2, 3)
-    add_edge!(G, 3, 4)
-    add_edge!(G, 1, 4)
-    add_edge!(G, 1, 5)
-    add_edge!(G, 2, 6)
-    add_edge!(G, 3, 7)
-    add_edge!(G, 4, 8)
-
-    gplot(G, nodelabel=1:8)
 end
 
 main(3)
