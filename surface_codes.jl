@@ -2,10 +2,10 @@ using LinearAlgebra
 using DelimitedFiles
 using Statistics
 using LightGraphs
-using GraphPlot
-using Compose
-using Gadfly
-import Cairo, Fontconfig
+# using GraphPlot
+# using Compose
+# using Gadfly
+# import Cairo, Fontconfig
 using SparseArrays
 using CSV
 
@@ -377,7 +377,7 @@ function measurement_circuit!(QS::QuantumState, d::Int64, graph::Dict,
     end
 end
 
-function find_fault(timestep::Vector{Int64}, timestep0::Vector{Int64}, 
+function find_fault(d::Int64, timestep::Vector{Int64}, timestep0::Vector{Int64}, 
     timestep1::Vector{Int64}, timestep2::Vector{Int64}, 
     x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
     x_ancilla_values::Vector{Int64} = []
@@ -388,11 +388,17 @@ function find_fault(timestep::Vector{Int64}, timestep0::Vector{Int64},
     for i in x_ancilla_list
         append!(x_ancilla_values, timestep1[i]*timestep[i])
     end
+    for i = 1:2*d
+        append!(x_ancilla_values, 0)
+    end
     for i in x_ancilla_list
         append!(x_ancilla_values, timestep2[i]*timestep0[i])
     end
     for i in z_ancilla_list
         append!(z_ancilla_values, timestep1[i]*timestep[i])
+    end
+    for i = 1:2*d
+        append!(z_ancilla_values, 0)
     end
     for i in z_ancilla_list
         append!(z_ancilla_values, timestep2[i]*timestep0[i])
@@ -482,7 +488,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for j in z_ancilla_list
                                 measurement_cycle2[j] = measure!(qs,j)
                             end
-                            edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                            edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                             measurement_cycle2, x_ancilla_list, z_ancilla_list)
                             if length(edges[1]) == 2
                                 add_edge!(G_x, edges[1][1], edges[1][2])
@@ -548,7 +554,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                                edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                                 measurement_cycle2, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
@@ -615,7 +621,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                                edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                                 measurement_cycle2, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
@@ -682,7 +688,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                                edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                                 measurement_cycle2, x_ancilla_list, z_ancilla_list) 
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
@@ -749,7 +755,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                                edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                                 measurement_cycle2, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
@@ -813,7 +819,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for j in z_ancilla_list
                                 measurement_cycle2[j] = measure!(qs,j)
                             end
-                            edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                            edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                             measurement_cycle2, x_ancilla_list, z_ancilla_list)
                             if length(edges[1]) == 2
                                 add_edge!(G_x, edges[1][1], edges[1][2])
@@ -887,7 +893,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                                edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                                 measurement_cycle2, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
@@ -955,7 +961,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
 
-                                edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                                edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                                 measurement_cycle2, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
@@ -1022,7 +1028,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                                edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                                 measurement_cycle2, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
@@ -1089,7 +1095,7 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 for j in z_ancilla_list
                                     measurement_cycle2[j] = measure!(qs,j)
                                 end
-                                edges = find_fault(measurement_cycle, measurement_cycle0, measurement_cycle1, 
+                                edges = find_fault(d, measurement_cycle, measurement_cycle0, measurement_cycle1, 
                                 measurement_cycle2, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
@@ -1105,20 +1111,35 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
         end
     end
 
-    for i in range(1, length = 2*d*(d-1))
-        add_edge!(G_x, i, 2*d*(d-1) + i)
-        add_edge!(G_z, i, 2*d*(d-1) + i)
+    for i in range(1, length = d)
+        add_edge!(G_x, i, d*(d-1) + i)
+        add_edge!(G_z, i, d*(d-1) + i)
+    end
+
+    for i in range(1+d*(d-2), length = d)
+        add_edge!(G_x, i, d*(d-1) + i)
+        add_edge!(G_z, i, d*(d-1) + i)
+    end
+
+    for i in range(1+d*(d+1), length = d)
+        add_edge!(G_x, i, d*(d-1) + i)
+        add_edge!(G_z, i, d*(d-1) + i)
+    end
+
+    for i in range(1+d*(d-2)+d*(d+1), length = d)
+        add_edge!(G_x, i, d*(d-1) + i)
+        add_edge!(G_z, i, d*(d-1) + i)
     end
 
     CSC_G_x = findnz(adjacency_matrix(G_x))
     CSC_G_z = findnz(adjacency_matrix(G_z))
-    open("CSC_G_vertex.txt", "w") do f
+    open("CSC_G_vertex1.txt", "w") do f
         for i = 1:length(CSC_G_x[1])
             println(f, (CSC_G_x[1][i], CSC_G_x[2][i]))
         end
     end
 
-    open("CSC_G_plaquette.txt", "w") do f
+    open("CSC_G_plaquette1.txt", "w") do f
         for i = 1:length(CSC_G_z[1])
             println(f, (CSC_G_z[1][i], CSC_G_z[2][i]))
         end
@@ -1126,6 +1147,62 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
 
     # display(adjacency_matrix(G_x))
     # display(adjacency_matrix(G_z))
+end
+
+function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
+    fault_edge::Vector{Int64})
+    ancilla_pair::Vector{Int64} = [x_ancilla_list[fault_edge[1]], x_ancilla_list[fault_edge[2]]]
+    if isempty(intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]]))
+        # two faults
+        return [intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[1] + d-1]),
+        intersect(surface_code_lattice[ancilla_pair[2]], surface_code_lattice[ancilla_pair[2] + 1])]
+    else
+        # one fault
+        return intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]])
+end
+
+function find_data_qubit_x(d::Int64, surface_code_lattice::Dict, z_ancilla_list::Vector{Int64}, 
+    fault_edge::Vector{Int64})
+    ancilla_pair::Vector{Int64} = [z_ancilla_list[fault_edge[1]], z_ancilla_list[fault_edge[2]]]
+    if isempty(intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]]))
+        # two faults
+        return [intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[1] + d]),
+        intersect(surface_code_lattice[ancilla_pair[2]], surface_code_lattice[ancilla_pair[2] + 1])]
+    else
+        # one fault
+        return intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]])
+end
+
+function find_error_qubit(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
+    z_ancilla_list::Vector{Int64}, x_edge_list::Tuple, z_edge_list::Tuple)
+    x_error_qubits::Vector{Int64} = [] # qubits where x error occurred 
+    z_error_qubits::Vector{Int64} = [] # qubits where z error occurred
+    # Assuming the nodes of each edge is in increasing order
+    for edge in x_edge_list
+        if edge[2] == edge[1] + d*(d+1)
+            # Fault on an ancilla qubit: find the corresponding qubit at t=0
+            append!(z_error_qubits, edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1))
+        else
+            # Fault on a data qubit: find the corresponding qubit at t=0
+            fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
+            edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
+            append!(z_error_qubits, find_data_qubit_z(d, surface_code_lattice, x_ancilla_list,
+             fault_edge))
+        end
+    end
+
+    for edge in z_edge_list
+        if edge[2] == edge[1] + d*(d+1)
+            # Fault on an ancilla qubit: find the corresponding qubit at t=0
+            append!(x_error_qubits, edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1))
+        else
+            # Fault on a data qubit: find the corresponding qubit at t=0
+            fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
+            edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
+            append!(x_error_qubits, find_data_qubit_x(d, surface_code_lattice, z_ancilla_list,
+             fault_edge))
+        end
+    end
 end
 
 # function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
