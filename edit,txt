@@ -1,0 +1,11 @@
+Meeting 19th Nov
+- Fix the function generating the fault graph: It is currently 
+displaying the nodes with a different measurement value and not the 
+change in measurement.
+- Add the 0 weight link between all the ghost nodes
+- Add the dummy nodes
+- Have function to generate another graph that separates the
+temporal ghost nodes (different node label but pointing to the same 
+node in the volume lattice)
+- minimum weight matching by using max and subtracting the edge 
+weights from a large number (set maxcardinality=True)
