@@ -385,21 +385,28 @@ function find_fault(d::Int64, timestep::Vector{Int64}, timestep0::Vector{Int64},
     x_fault::Vector{Int64} = []
     z_fault::Vector{Int64} = []
 
+    # Errors appearing in first measurement cycle
     for i in x_ancilla_list
         append!(x_ancilla_values, timestep1[i]*timestep[i])
     end
-    for i = 1:2*d
-        append!(x_ancilla_values, 0)
-    end
-    for i in x_ancilla_list
-        append!(x_ancilla_values, timestep2[i]*timestep0[i])
-    end
+
     for i in z_ancilla_list
         append!(z_ancilla_values, timestep1[i]*timestep[i])
     end
+
+    for i = 1:2*d
+        append!(x_ancilla_values, 0)
+    end
+
     for i = 1:2*d
         append!(z_ancilla_values, 0)
     end
+
+    # Errors appearing in second measurement cycle
+    for i in x_ancilla_list
+        append!(x_ancilla_values, timestep2[i]*timestep0[i])
+    end
+    
     for i in z_ancilla_list
         append!(z_ancilla_values, timestep2[i]*timestep0[i])
     end
@@ -1149,8 +1156,43 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     # display(adjacency_matrix(G_z))
 end
 
+function generate_fault_nodes(d::Int64, num_cycles::Int64, measurement_cycles::Array{Array{Int64,1},1},
+    x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
+    """
+    Generates a list of nodes (vertex and plaquettes) with faults 
+    numbered in the form of the volume lattice. Measurement cycles
+    are measurement values for multiple cycles. 
+    measurement_cycle[1]: initial values corresponding to +1
+    measurement_cycle[2]: values of 1st cycle
+    measurement_cycle[3]: values of 2nd cycle
+    and so on ...
+    """
+    vertex_fault_list::Vector{Int64} = []
+    for i = 1:length(measurement_cycles)-1
+        for j = 1:length(x_ancilla_list)
+            if measurement_cycles[i][x_ancilla_list[j]]*measurement_cycles[i+1][x_ancilla_list[j]] == -1
+                append!(vertex_fault_list, j+(i-1)*d*(d+1))
+            end
+        end
+    end
+
+    plaquette_fault_list::Vector{Int64} = []
+    for i = 1:length(measurement_cycles)-1
+        for j = 1:length(z_ancilla_list)
+            if measurement_cycles[i][z_ancilla_list[j]]*measurement_cycles[i+1][z_ancilla_list[j]] == -1
+                append!(plaquette_fault_list, j+(i-1)*d*(d+1))
+            end
+        end
+    end
+
+    return vertex_fault_list, plaquette_fault_list
+end
+
+
+# Recovery Section
 function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
+    # Fix for the errors consisting of the ghost nodes 
     ancilla_pair::Vector{Int64} = [x_ancilla_list[fault_edge[1]], x_ancilla_list[fault_edge[2]]]
     if isempty(intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]]))
         # two faults
@@ -1159,10 +1201,12 @@ function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list:
     else
         # one fault
         return intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]])
+    end
 end
 
 function find_data_qubit_x(d::Int64, surface_code_lattice::Dict, z_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
+    # Fix for the errors consisting of ghost nodes 
     ancilla_pair::Vector{Int64} = [z_ancilla_list[fault_edge[1]], z_ancilla_list[fault_edge[2]]]
     if isempty(intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]]))
         # two faults
@@ -1171,6 +1215,7 @@ function find_data_qubit_x(d::Int64, surface_code_lattice::Dict, z_ancilla_list:
     else
         # one fault
         return intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]])
+    end
 end
 
 function find_error_qubit(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
@@ -1203,7 +1248,9 @@ function find_error_qubit(d::Int64, surface_code_lattice::Dict, x_ancilla_list::
              fault_edge))
         end
     end
+    return z_error_qubits, x_error_qubits
 end
+ 
 
 # function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
 #     measurement::Vector{Int64}, pdf::Vector{Float64})
@@ -1268,10 +1315,15 @@ function main(d::Int64)
         measurement_values[i] = measure!(QS, i)
     end
 
-    generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
-    measurement_values)
+    measurement_cycles = [[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
+    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0],
+    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0]]
 
-    # display(reshape(measurement_values, (5,5)))
+    # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
+    # measurement_values)
+
+    fault_list = generate_fault_nodes(d, 2, measurement_cycles, x_ancilla_list, z_ancilla_list)
+    display(fault_list)
     # gamma::Float64 = 0.05
     # coeff_gates::Vector{Float64} = [(1.0-gamma)/2+sqrt(1.0-gamma)/2, (1.0-gamma)/2-sqrt(1.0-gamma)/2, gamma]
     # prob_distribution::Vector{Float64} = probDistribution(coeff_gates)
