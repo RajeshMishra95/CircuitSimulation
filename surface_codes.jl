@@ -1140,13 +1140,13 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
 
     CSC_G_x = findnz(adjacency_matrix(G_x))
     CSC_G_z = findnz(adjacency_matrix(G_z))
-    open("CSC_G_vertex1.txt", "w") do f
+    open("CSC_G_vertex.txt", "w") do f
         for i = 1:length(CSC_G_x[1])
             println(f, (CSC_G_x[1][i], CSC_G_x[2][i]))
         end
     end
 
-    open("CSC_G_plaquette1.txt", "w") do f
+    open("CSC_G_plaquette.txt", "w") do f
         for i = 1:length(CSC_G_z[1])
             println(f, (CSC_G_z[1][i], CSC_G_z[2][i]))
         end
@@ -1316,8 +1316,8 @@ function main(d::Int64)
     end
 
     measurement_cycles = [[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
-    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0],
-    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0]]
+    [0,1,0,1,0,-1,0,-1,0,1,0,1,0,1,0,1,0,-1,0,-1,0,1,0,1,0],
+    [0,1,0,1,0,-1,0,-1,0,1,0,1,0,1,0,1,0,-1,0,-1,0,1,0,1,0]]
 
     # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
     # measurement_values)
