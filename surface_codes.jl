@@ -1295,7 +1295,7 @@ end
 # end
 
 function main(d::Int64)
-    # initialize values and get the connections between qubits and 
+    # initialize values and get the connections between qubits. 
     total_qubits::Int64 = (2*d-1)^2
     QS = QuantumState(total_qubits)
     connections::Dict = generate_connections(d)
@@ -1316,13 +1316,14 @@ function main(d::Int64)
     end
 
     measurement_cycles = [[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
-    [0,1,0,1,0,-1,0,-1,0,1,0,1,0,1,0,1,0,-1,0,-1,0,1,0,1,0],
-    [0,1,0,1,0,-1,0,-1,0,1,0,1,0,1,0,1,0,-1,0,-1,0,1,0,1,0]]
+    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
+    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
+    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0]]
 
     # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
     # measurement_values)
 
-    fault_list = generate_fault_nodes(d, 2, measurement_cycles, x_ancilla_list, z_ancilla_list)
+    fault_list = generate_fault_nodes(d, 3, measurement_cycles, x_ancilla_list, z_ancilla_list)
     display(fault_list)
     # gamma::Float64 = 0.05
     # coeff_gates::Vector{Float64} = [(1.0-gamma)/2+sqrt(1.0-gamma)/2, (1.0-gamma)/2-sqrt(1.0-gamma)/2, gamma]
