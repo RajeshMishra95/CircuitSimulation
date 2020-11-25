@@ -1,4 +1,5 @@
 import CHP
+import qubit_setup
 import sampling
 import lattice
 import fault_search
