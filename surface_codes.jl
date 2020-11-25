@@ -1188,6 +1188,41 @@ function generate_fault_nodes(d::Int64, num_cycles::Int64, measurement_cycles::A
     return vertex_fault_list, plaquette_fault_list
 end
 
+# function error_lattice(d::Int64, cycles::Int64, initial_lattice::Array{Array{Int64},1})
+#     """
+#     Creats the adjacency list of the volume lattice using the initial lattice.
+#     """
+#     @assert cycles > 2
+#     final_lattice = deepcopy(initial_lattice)
+#     inc = d*(d+1)
+#     for j = 1:cycles-2
+#         for i in initial_lattice
+#             append!(final_lattice, i[1]+j*inc, i[2]+j*inc)
+#         end
+#     end
+#     return final_lattice
+# end
+
+# function build_lattice_graph(d::Int64, cycles::Int64, edges::Array{Array{Int64,1}})
+#     """Generates a graph given the arguments."""
+#     G = SimpleGraph(d*(d+1)*cycles)
+#     for i in edges
+#         add_edge!(G, i[1], i[2])
+#     end
+#     return G
+# end
+
+# function generate_shortest_path_graph(d::Int64, cycles::Int64, volume_lattice::Array{Array{Int64,1}},
+#     fault_nodes::Vector{Int64})
+#     """
+#     Takes the fault node and generates a graph containing the fault nodes and the 
+#     shortest distance between each of the fault nodes and also between the fault nodes
+#     their corresponding spatial and temporal ghost nodes. Here, ghost can be shared by 
+#     multiple real nodes.
+#     """
+#     Graph_volume_lattice = build_lattice_graph(d,cycles,volume_lattice)
+#     Graph_fault = SimpleGraph(length(fault_nodes))
+#     for 
 
 # Recovery Section
 function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
