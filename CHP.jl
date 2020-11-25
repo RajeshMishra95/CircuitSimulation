@@ -5,6 +5,8 @@ using LinearAlgebra
 mutable struct QuantumState
     tableau::Matrix
     qubits::Int64
+
+    QuantumState(qubits::Int64) = new(hcat(Matrix{Int64}(I,2*qubits,2*qubits),zeros(Int64,2*qubits,1)),qubits)
 end 
 
 function apply_h!(QS::QuantumState, qubit::Int64)
