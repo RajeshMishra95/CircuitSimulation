@@ -73,4 +73,11 @@ def apply_measurement_circuit(QS, d, graph, x_ancilla_list, z_ancilla_list):
     # measurement of the x_ancillas is the x basis
     for l in x_ancilla_list:
         QS.apply_h(l)
+
+def ancilla_measurement(QS, x_ancilla_list, z_ancilla_list, measurement_value):
+    for i in x_ancilla_list:
+        measurement_value[i] = QS.measure(i)
+    for i in z_ancilla_list:
+        measurement_value[i] = QS.measure(i)
+    return measurement_value
     

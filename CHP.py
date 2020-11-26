@@ -90,9 +90,9 @@ class QuantumState:
     def measure(self,qubit):
         prob_measure = self.__prob_measure(qubit)
         if prob_measure == [1,0]:
-            return [1,0]
+            return +1
         elif prob_measure == [0,1]:
-            return [0,1]
+            return -1
         else: 
             for i in range(2*self.num_qubits):
                 if self.tableau[i][qubit] == 1 and (i != prob_measure[2]):
@@ -102,6 +102,6 @@ class QuantumState:
             self.tableau[prob_measure[2]][-1] = random.randint(0,1)
             self.tableau[prob_measure[2]][self.num_qubits+qubit] = 1
             if self.tableau[prob_measure[2]][-1] == 0:
-                return [1,0]
+                return +1
             elif self.tableau[prob_measure[2]][-1] == 1:
-                return [0,1]
+                return -1
