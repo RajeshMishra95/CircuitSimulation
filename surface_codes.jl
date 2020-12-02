@@ -8,6 +8,7 @@ using LightGraphs
 # import Cairo, Fontconfig
 using SparseArrays
 using CSV
+using DataFrames
 
 mutable struct QuantumState
     tableau::Matrix
@@ -1340,7 +1341,10 @@ function main(d::Int64)
     # generate the different sets of qubits
     data_qubits_list::Vector{Int64} = generate_data_qubits(total_qubits)
     x_ancilla_list::Vector{Int64} = generate_x_ancillas(d, total_qubits)
-    z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)        
+    z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)
+    
+    # measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
+    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
 
     for i in x_ancilla_list
         measurement_values[i] = measure!(QS, i)
@@ -1350,16 +1354,21 @@ function main(d::Int64)
         measurement_values[i] = measure!(QS, i)
     end
 
-    measurement_cycles = [[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
-    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
-    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
-    [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0]]
+    I, J, V = findnz(sparse(QS.tableau))
+    df = DataFrame([:I => I, :J => J])
+    CSV.write("spmatrix.csv", df)
+
+    # measurement_cycles = [[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
+    # [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
+    # [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
+    # [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0]]
 
     # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
     # measurement_values)
 
-    fault_list = generate_fault_nodes(d, 3, measurement_cycles, x_ancilla_list, z_ancilla_list)
-    display(fault_list)
+    # fault_list = generate_fault_nodes(d, 3, measurement_cycles, x_ancilla_list, z_ancilla_list)
+    # display(fault_list)
+
     # gamma::Float64 = 0.05
     # coeff_gates::Vector{Float64} = [(1.0-gamma)/2+sqrt(1.0-gamma)/2, (1.0-gamma)/2-sqrt(1.0-gamma)/2, gamma]
     # prob_distribution::Vector{Float64} = probDistribution(coeff_gates)

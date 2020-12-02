@@ -11,6 +11,7 @@ import sys
 import networkx as nx
 import matplotlib.pyplot as plt
 import csv
+import pandas as pd
 
 # def plot_graph(G):
 #     pos = nx.spring_layout(G)
@@ -31,6 +32,7 @@ if __name__ == "__main__":
     measurement_circuit.apply_measurement_circuit(QS, distance, connections, x_ancilla_list, z_ancilla_list)
     measurement_values = measurement_circuit.ancilla_measurement(QS, x_ancilla_list, z_ancilla_list, measurement_values)
     stabilizers = QS.get_tableau()
+    # stab.to_csv('stabilizers.csv')
     np.savetxt("stabilizers.csv", np.vstack(stabilizers[25:]), delimiter=",", fmt='%u')
     # with open("stabilizers.csv", "w", newline='') as myfile:
     #     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
