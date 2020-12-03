@@ -1225,6 +1225,82 @@ end
 #     Graph_fault = SimpleGraph(length(fault_nodes))
 #     for 
 
+function distill_stabilizers(QS::QuantumState, d::Int64)
+    #=
+    This function finds the rows that corresponds to the uncoupled stabilizers. 
+    =#
+
+    total_qubits::Int64 = (2*d-1)^2
+    stabilizers::Vector{Int64} = []
+
+    for row = total_qubits+1:2*total_qubits
+        isStab = false
+        for i in findall(x -> x == 1, QS.tableau[row,1:total_qubits])
+            if i%2 == 0 
+                isStab = false 
+                break
+            else
+                isStab = true
+            end
+        end
+        if isStab == true 
+            append!(stabilizers, QS.tableau[row,:])
+        else
+            for j in findall(x -> x == 1, QS.tableau[row,total_qubits + 1:2*total_qubits])
+                if j%2 == 0
+                    isStab = false 
+                    break
+                else
+                    isStab = true
+                end
+            end
+            if isStab == true 
+                append!(stabilizers, QS.tableau[row,:])
+            end
+        end
+    end
+    final_stabilizers::Array{Int64,2} = transpose(reshape(stabilizers, (2*total_qubits+1, Int((total_qubits+1)/2))))
+    # I, J, V = findnz(sparse(final_stabilizers))
+    # df = DataFrame([:I => I, :J => J])
+    # CSV.write("spmatrix.csv", df)
+
+    return final_stabilizers
+end
+
+function commutation_check(stablilizers::Array{Int64,2}, d::Int64)
+    #=
+    This function checks for commuting relationship between the X-logical operator
+    and the uncoupled stabilizers. Returns the stabilizers that anti-commute with
+    the X-logical operator. Then it takes the anti-commuting operators and recursively 
+    eliminates all but one stabilizer that anti-commutes with the X-logical operator 
+    and this stabilizer is the one that stores the state of the surface code.
+    =#
+    if size(stablilizers)[1] == 1
+        return stablilizers[1,end]
+    else
+        total_qubits::Int64 = (2*d-1)^2
+        anti_comm_stabilizer::Vector{Int64} = []
+        x_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
+        for i = 1:d
+            x_logical[1+2*(2*d-1)*(i-1)] = 1
+        end
+        for i = 1:size(stablilizers)[1]
+            if length(findall(x -> x == 1, 
+                x_logical[1:total_qubits].*stablilizers[i,total_qubits+1:2*total_qubits]))%2 == 1
+                append!(anti_comm_stabilizer, stablilizers[i,:])
+            end
+        end
+        remaining_stabilizers::Array{Int64,2} = transpose(reshape(anti_comm_stabilizer, 
+        (2*total_qubits+1, Int(length(anti_comm_stabilizer)/(2*total_qubits+1)))))
+
+        for i = 1:size(remaining_stabilizers)[1]-1
+            remaining_stabilizers[i,:] = xor.(remaining_stabilizers[i,:],remaining_stabilizers[i+1,:])
+        end    
+
+        return commutation_check(remaining_stabilizers, d)
+    end
+end
+
 # Recovery Section
 function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
@@ -1343,21 +1419,18 @@ function main(d::Int64)
     x_ancilla_list::Vector{Int64} = generate_x_ancillas(d, total_qubits)
     z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)
     
-    # measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
-    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
-
+    qs = deepcopy(QS)
+    measurement_circuit!(qs, d, connections, x_ancilla_list, z_ancilla_list)
     for i in x_ancilla_list
-        measurement_values[i] = measure!(QS, i)
+        measurement_values[i] = measure!(qs, i)
     end
 
     for i in z_ancilla_list
-        measurement_values[i] = measure!(QS, i)
+        measurement_values[i] = measure!(qs, i)
     end
 
-    I, J, V = findnz(sparse(QS.tableau))
-    df = DataFrame([:I => I, :J => J])
-    CSV.write("spmatrix.csv", df)
-
+    initial_code_state = commutation_check(distill_stabilizers(qs, d), d)
+    display(initial_code_state)
     # measurement_cycles = [[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
     # [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
     # [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
