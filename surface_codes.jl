@@ -9,6 +9,9 @@ using LightGraphs
 using SparseArrays
 using CSV
 using DataFrames
+using IterTools
+using PyCall
+using Conda
 
 mutable struct QuantumState
     tableau::Matrix
@@ -155,19 +158,19 @@ end
 
 function probDistribution(quasi_prob::Array{Float64,1})
     prob = zeros(0)
+    cdf = zeros(1)
     quasi_prob_norm = oneNorm(quasi_prob)
     for i in quasi_prob
         append!(prob, abs(i)/quasi_prob_norm)
     end
-    return prob
+
+    for i = 1:length(prob)
+        append!(cdf,cdf[i]+prob[i])
+    end
+    return cdf
 end
 
-function samplingDistribution(pdf::Array{Float64,1})
-    cdf = zeros(1)
-    for i = 1:length(pdf)
-        append!(cdf,cdf[i]+pdf[i])
-    end
-
+function samplingDistribution(cdf::Array{Float64,1})
     random_value = rand()
     idx = 0
 
@@ -254,11 +257,23 @@ function generate_z_ancillas(d::Int64, total_qubits::Int64)
     return z_ancillas
 end
 
+# function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
+#     """Amplitude Damping"""
+#     if gate == 2
+#         apply_z!(QS, qubit)
+#     elseif gate == 3
+#         apply_Rz!(QS, qubit)
+#     end
+# end
+
 function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
+    """Pauli noise"""
     if gate == 2
-        apply_z!(QS, qubit)
+        apply_x!(QS, qubit)
     elseif gate == 3
-        apply_Rz!(QS, qubit)
+        apply_y!(QS, qubit)
+    elseif gate == 4
+        apply_z!(QS, qubit)
     end
 end
 
@@ -268,10 +283,27 @@ function prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64})
     end
 end
 
+function noisy_prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    for i in x_ancilla_list
+        apply_h!(QS,i)
+        gateOperation!(QS, samplingDistribution(cdf), i)
+    end
+end
+
 function north_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::Vector{Int64})
     for j in z_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j-1, j)
+        end
+    end
+end
+
+function noisy_north_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    for j in z_ancilla_list
+        if j-1 in graph[j]
+            apply_cnot!(QS, j-1, j)
+            gateOperation!(QS, samplingDistribution(cdf), j)
+            gateOperation!(QS, samplingDistribution(cdf), j-1)
         end
     end
 end
@@ -284,10 +316,30 @@ function north_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::Vector
     end
 end
 
+function noisy_north_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    for j in x_ancilla_list
+        if j-1 in graph[j]
+            apply_cnot!(QS, j, j-1)
+            gateOperation!(QS, samplingDistribution(cdf), j)
+            gateOperation!(QS, samplingDistribution(cdf), j-1)
+        end
+    end
+end
+
 function west_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancilla_list::Vector{Int64})
     for j in z_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j-(2*d-1), j)
+        end
+    end
+end
+
+function noisy_west_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    for j in z_ancilla_list
+        if j-(2*d-1) in graph[j]
+            apply_cnot!(QS, j-(2*d-1), j)
+            gateOperation!(QS, samplingDistribution(cdf), j)
+            gateOperation!(QS, samplingDistribution(cdf), j-(2*d-1))
         end
     end
 end
@@ -300,10 +352,30 @@ function west_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancilla_lis
     end
 end
 
+function noisy_west_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    for j in x_ancilla_list
+        if j-(2*d-1) in graph[j]
+            apply_cnot!(QS, j, j-(2*d-1))
+            gateOperation!(QS, samplingDistribution(cdf), j)
+            gateOperation!(QS, samplingDistribution(cdf), j-(2*d-1))
+        end
+    end
+end
+
 function east_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancilla_list::Vector{Int64})
     for j in z_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j+(2*d-1), j)
+        end
+    end
+end
+
+function noisy_east_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    for j in z_ancilla_list
+        if j+(2*d-1) in graph[j]
+            apply_cnot!(QS, j+(2*d-1), j)
+            gateOperation!(QS, samplingDistribution(cdf), j)
+            gateOperation!(QS, samplingDistribution(cdf), j+(2*d-1))
         end
     end
 end
@@ -316,6 +388,16 @@ function east_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancilla_lis
     end
 end
 
+function noisy_east_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancilla_list::Vector{Int64}, cf::Array{Float64,1})
+    for j in x_ancilla_list
+        if j+(2*d-1) in graph[j]
+            apply_cnot!(QS, j, j+(2*d-1))
+            gateOperation!(QS, samplingDistribution(cdf), j)
+            gateOperation!(QS, samplingDistribution(cdf), j+(2*d-1))
+        end
+    end
+end
+
 function south_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::Vector{Int64})
     for j in z_ancilla_list
         if j+1 in graph[j]
@@ -324,10 +406,30 @@ function south_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::Vector
     end
 end
 
+function noisy_south_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    for j in z_ancilla_list
+        if j+1 in graph[j]
+            apply_cnot!(QS, j+1, j)
+            gateOperation!(QS, samplingDistribution(cdf), j)
+            gateOperation!(QS, samplingDistribution(cdf), j+1)
+        end
+    end
+end
+
 function south_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::Vector{Int64})
     for j in x_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j, j+1)
+        end
+    end
+end
+
+function south_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    for j in x_ancilla_list
+        if j+1 in graph[j]
+            apply_cnot!(QS, j, j+1)
+            gateOperation!(QS, samplingDistribution(cdf), j)
+            gateOperation!(QS, samplingDistribution(cdf), j+1)
         end
     end
 end
@@ -373,9 +475,37 @@ function measurement_circuit!(QS::QuantumState, d::Int64, graph::Dict,
     south_x_ancillas!(QS, graph, x_ancilla_list) 
 
     # measurement of the x_ancillas is the x basis
-    for l in x_ancilla_list
-        apply_h!(QS,l)
-    end
+    prep_x_ancillas!(QS, x_ancilla_list)
+end
+
+function noisy_measurement_circuit!(QS::QuantumState, d::Int64, graph::Dict, 
+    x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
+    # prepare the x_ancillas in the |+> state
+    noisy_prep_x_ancillas!(QS, x_ancilla_list, cdf)
+
+    # carry out the measurement circuits
+    # North
+    noisy_north_z_ancillas!(QS, graph, z_ancilla_list, cdf)
+
+    noisy_north_x_ancillas!(QS, graph, x_ancilla_list, cdf)
+
+    # West
+    noisy_west_z_ancillas!(QS, d, graph, z_ancilla_list, cdf)
+
+    noisy_west_x_ancillas!(QS, d, graph, x_ancilla_list, cdf)
+
+    # East
+    noisy_east_z_ancillas!(QS, d, graph, z_ancilla_list, cdf)
+
+    noisy_east_x_ancillas!(QS, d, graph, x_ancilla_list, cdf)
+
+    # South
+    noisy_south_z_ancillas!(QS, graph, z_ancilla_list, cdf)
+
+    noisy_south_x_ancillas!(QS, graph, x_ancilla_list, cdf) 
+
+    # measurement of the x_ancillas is the x basis
+    noisy_prep_x_ancillas!(QS, x_ancilla_list, cdf)
 end
 
 function find_fault(d::Int64, timestep::Vector{Int64}, timestep0::Vector{Int64}, 
@@ -1153,8 +1283,6 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
         end
     end
 
-    # display(adjacency_matrix(G_x))
-    # display(adjacency_matrix(G_z))
 end
 
 function generate_fault_nodes(d::Int64, num_cycles::Int64, measurement_cycles::Array{Array{Int64,1},1},
@@ -1198,7 +1326,7 @@ end
 #     inc = d*(d+1)
 #     for j = 1:cycles-2
 #         for i in initial_lattice
-#             append!(final_lattice, i[1]+j*inc, i[2]+j*inc)
+#             append!(final_lattice, (i[1]+j*inc, i[2]+j*inc))
 #         end
 #     end
 #     return final_lattice
@@ -1222,13 +1350,37 @@ end
 #     multiple real nodes.
 #     """
 #     Graph_volume_lattice = build_lattice_graph(d,cycles,volume_lattice)
-#     Graph_fault = SimpleGraph(length(fault_nodes))
-#     for 
+#     Graph_fault = SimpleWeightedGraphs(3*length(fault_nodes))
+#     for pair in Iterators.product(fault_nodes, fault_nodes)
+#         w = gdistances(Graph_volume_lattice, pair[1])[par[2]]
+#         add_edge!(Graph_fault, pair[1], pair[2], w)
+#     end
+
+#     # Adding the spatial ghost nodes
+#     total_nodes_per_layer = d*(d+1)
+#     total_real_nodes = d*(d-1)
+#     all_ghost_nodes = []
+#     for i in fault_nodes
+#         spatial_ghost_nodes = range((int(i/total_nodes_per_layer))*total_nodes_per_layer + total_real_nodes + 1,
+#         (int(i/total_nodes_per_layer) + 1)*total_nodes_per_layer)
+#         all_shortest_paths = []
+#         for j in spatial_ghost_nodes
+#             append!(all_shortest_paths, gdistances(Graph_volume_lattice, i)[j])
+#         end
+#         append!(all_ghost_nodes, spatial_ghost_nodes[argmin(all_shortest_paths)])
+#         add_vertex!(Graph_fault, spatial_ghost_nodes[argmin(all_shortest_paths)])
+#     end
+# end
+
+# function generate_shortest_path_graph_unique(d::Int64, cycles::Int64, volume_lattice::Array{Array{Int64,1}},
+#     fault_nodes::Vector{Int64})
+# end
+
+# function update_weight(graph::SimpleGraph, value)
+# end
 
 function distill_stabilizers(QS::QuantumState, d::Int64)
-    #=
-    This function finds the rows that corresponds to the uncoupled stabilizers. 
-    =#
+    """ This function finds the rows that corresponds to the uncoupled stabilizers. """
 
     total_qubits::Int64 = (2*d-1)^2
     stabilizers::Vector{Int64} = []
@@ -1268,37 +1420,48 @@ function distill_stabilizers(QS::QuantumState, d::Int64)
 end
 
 function commutation_check(stablilizers::Array{Int64,2}, d::Int64)
-    #=
+    """
     This function checks for commuting relationship between the X-logical operator
     and the uncoupled stabilizers. Returns the stabilizers that anti-commute with
     the X-logical operator. Then it takes the anti-commuting operators and recursively 
     eliminates all but one stabilizer that anti-commutes with the X-logical operator 
     and this stabilizer is the one that stores the state of the surface code.
-    =#
-    if size(stablilizers)[1] == 1
-        return stablilizers[1,end]
-    else
-        total_qubits::Int64 = (2*d-1)^2
-        anti_comm_stabilizer::Vector{Int64} = []
-        x_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
-        for i = 1:d
-            x_logical[1+2*(2*d-1)*(i-1)] = 1
-        end
-        for i = 1:size(stablilizers)[1]
-            if length(findall(x -> x == 1, 
-                x_logical[1:total_qubits].*stablilizers[i,total_qubits+1:2*total_qubits]))%2 == 1
-                append!(anti_comm_stabilizer, stablilizers[i,:])
-            end
-        end
-        remaining_stabilizers::Array{Int64,2} = transpose(reshape(anti_comm_stabilizer, 
-        (2*total_qubits+1, Int(length(anti_comm_stabilizer)/(2*total_qubits+1)))))
-
-        for i = 1:size(remaining_stabilizers)[1]-1
-            remaining_stabilizers[i,:] = xor.(remaining_stabilizers[i,:],remaining_stabilizers[i+1,:])
-        end    
-
-        return commutation_check(remaining_stabilizers, d)
+    """
+    total_qubits::Int64 = (2*d-1)^2
+    anti_comm_stabilizer::Vector{Int64} = []
+    x_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
+    for i = 1:d
+        x_logical[1+2*(2*d-1)*(i-1)] = 1
     end
+    for i = 1:size(stablilizers)[1]
+        if length(findall(x -> x == 1, 
+            x_logical[1:total_qubits].*stablilizers[i,total_qubits+1:2*total_qubits]))%2 == 1
+            append!(anti_comm_stabilizer, stablilizers[i,:])
+        end
+    end
+    remaining_stabilizers::Array{Int64,2} = transpose(reshape(anti_comm_stabilizer, 
+    (2*total_qubits+1, Int(length(anti_comm_stabilizer)/(2*total_qubits+1)))))
+
+    for i = 1:size(remaining_stabilizers)[1]-1
+        remaining_stabilizers[i,:] = xor.(remaining_stabilizers[i,:],remaining_stabilizers[i+1,:])
+    end    
+
+    return remaining_stabilizers[end,end]
+end
+
+function surface_code_state(QS::QuantumState, d::Int64, connections::Dict,
+    x_ancilla_list::Vect{Int64}, z_ancilla_list::Vector{Int64})
+    """ Returns the logical state of the surface code. """
+    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
+    for i in x_ancilla_list
+        measure!(QS, i)
+    end
+
+    for i in z_ancilla_list
+        measure!(QS, i)
+    end
+
+    return commutation_check(distill_stabilizers(QS, d), d)
 end
 
 # Recovery Section
@@ -1362,49 +1525,6 @@ function find_error_qubit(d::Int64, surface_code_lattice::Dict, x_ancilla_list::
     end
     return z_error_qubits, x_error_qubits
 end
- 
-
-# function circuit_x_ancilla!(QS::QuantumState, graph::Dict, x_ancillas::Vector{Int64}, 
-#     measurement::Vector{Int64}, pdf::Vector{Float64})
-#     for i in x_ancillas
-#         apply_h!(QS,i)
-#         sampled_gate = samplingDistribution(pdf)
-#         gateOperation!(QS,sampled_gate,i)
-#         for j = 1:length(graph[i])
-#             for k = 1:length(graph[i])
-#                 if j == k
-#                     apply_cnot!(QS,i,graph[i][j])
-#                     sampled_gate = samplingDistribution(pdf)
-#                     gateOperation!(QS,sampled_gate,i)
-#                     sampled_gate = samplingDistribution(pdf)
-#                     gateOperation!(QS,sampled_gate,j)
-#                 end
-#             end
-#         end
-#         apply_h!(QS,i)
-#         sampled_gate = samplingDistribution(pdf)
-#         gateOperation!(QS,sampled_gate,i)
-#         measurement[i] = measure!(QS,i)
-#     end
-# end
-
-# function circuit_z_ancilla!(QS::QuantumState, graph::Dict, z_ancillas::Vector{Int64}, 
-#     measurement::Vector{Int64}, pdf::Vector{Float64})
-#     for i in z_ancillas
-#         for j = 1:length(graph[i])
-#             for k = 1:length(graph[i])
-#                 if j == k
-#                     apply_cnot!(QS,graph[i][j],i)
-#                     sampled_gate = samplingDistribution(pdf)
-#                     gateOperation!(QS,sampled_gate,i)
-#                     sampled_gate = samplingDistribution(pdf)
-#                     gateOperation!(QS,sampled_gate,j)
-#                 end
-#             end
-#         end
-#         measurement[i] = measure!(QS,i)
-#     end
-# end
 
 function main(d::Int64)
     # initialize values and get the connections between qubits. 
@@ -1418,9 +1538,7 @@ function main(d::Int64)
     data_qubits_list::Vector{Int64} = generate_data_qubits(total_qubits)
     x_ancilla_list::Vector{Int64} = generate_x_ancillas(d, total_qubits)
     z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)
-    
-    qs = deepcopy(QS)
-    measurement_circuit!(qs, d, connections, x_ancilla_list, z_ancilla_list)
+
     for i in x_ancilla_list
         measurement_values[i] = measure!(qs, i)
     end
@@ -1428,9 +1546,10 @@ function main(d::Int64)
     for i in z_ancilla_list
         measurement_values[i] = measure!(qs, i)
     end
+    
+    initial_code_state = surface_code_state(deepcopy(QS), d, connections, x_ancilla_list,
+    z_ancilla_list)
 
-    initial_code_state = commutation_check(distill_stabilizers(qs, d), d)
-    display(initial_code_state)
     # measurement_cycles = [[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
     # [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
     # [0,1,0,1,0,-1,0,1,0,1,0,1,0,1,0,1,0,-1,0,1,0,1,0,1,0],
@@ -1440,22 +1559,11 @@ function main(d::Int64)
     # measurement_values)
 
     # fault_list = generate_fault_nodes(d, 3, measurement_cycles, x_ancilla_list, z_ancilla_list)
+    pushfirst!(PyVector(pyimport("sys")."path"), "")
+    fault_search = pyimport("fault_search")
+    fault_edges = fault_search.main("CSC_G_plaquette.txt", 3, 4, [1, 5], 100)
+    display(fault_edges)
     # display(fault_list)
-
-    # gamma::Float64 = 0.05
-    # coeff_gates::Vector{Float64} = [(1.0-gamma)/2+sqrt(1.0-gamma)/2, (1.0-gamma)/2-sqrt(1.0-gamma)/2, gamma]
-    # prob_distribution::Vector{Float64} = probDistribution(coeff_gates)
-    # circuit_z_ancilla!(QS, graph, z_ancilla_list, measurement_values, prob_distribution)
-    # for i in data_qubits_list
-    #     apply_h!(QS,i)
-    #     sampled_gate = samplingDistribution(prob_distribution)
-    #     gateOperation!(QS,sampled_gate,i)
-    # end
-    # circuit_x_ancilla!(QS, graph, x_ancilla_list, measurement_values, prob_distribution)
-    # for j in data_qubits_list
-    #     apply_h!(QS,j)
-    # end
-    # return reshape(measurement_values, (5,5))
 end
 
 main(3)

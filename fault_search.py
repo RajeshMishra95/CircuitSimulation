@@ -1,6 +1,30 @@
-import lattice
 import networkx as nx 
 import itertools
+import numpy as np
+from copy import deepcopy
+from matplotlib import pyplot as plt
+
+def error_lattice(dist, cycles, initial_lattice):
+    """
+    Creats the adjacency list of the volume lattice using the initial lattice.
+    """
+    if __debug__:
+        if not (cycles > 2): raise AssertionError 
+    final_lattice = deepcopy(initial_lattice)
+    inc = dist*(dist+1)
+    for j in range(1, cycles-1):
+        for i in initial_lattice:
+            final_lattice.append((i[0]+j*inc, i[1]+j*inc))
+    return final_lattice
+
+def build_lattice_graph(d, cycles, edges):
+    """ Generates a graph given the arguments."""
+    G = nx.Graph()
+    total_nodes = d*(d+1)*cycles
+    for i in range(1,total_nodes+1):
+        G.add_node(i)
+    G.add_edges_from(edges)
+    return G
 
 def generate_shortest_path_graph(d, cycles, volume_lattice, fault_nodes):
     """
@@ -9,7 +33,7 @@ def generate_shortest_path_graph(d, cycles, volume_lattice, fault_nodes):
     their corresponding spatial and temporal ghost nodes. Here, ghost can be shared by 
     multiple real nodes.
     """
-    Graph_volume_lattice = lattice.build_lattice_graph(d, cycles, volume_lattice)
+    Graph_volume_lattice = build_lattice_graph(d, cycles, volume_lattice)
     Graph_fault = nx.Graph()
     for i in fault_nodes:
         Graph_fault.add_node(i)
@@ -59,7 +83,7 @@ def generate_shortest_path_graph_unique(d, cycles, volume_lattice, fault_nodes):
     their corresponding spatial and temporal ghost nodes. Here, ghost nodes are not 
     shared by multiple real nodes.
     """
-    Graph_volume_lattice = lattice.build_lattice_graph(d, cycles, volume_lattice)
+    Graph_volume_lattice = build_lattice_graph(d, cycles, volume_lattice)
     Graph_fault = nx.Graph()
     for i in fault_nodes:
         Graph_fault.add_node(str(i), value=i)
@@ -109,3 +133,22 @@ def update_weight(graph, value):
         graph[u][v]['weight'] = value - graph[u][v]['weight'] 
 
 
+def main(file_name, distance, cycles, fault_nodes, max_value_edge):
+    """
+    This function takes in the file that contains the initial plaquette/vertex
+    lattice. It then calls the above functions to generate the shortest path,
+    carry out minimum weight matching and returns the edges for the recovery to
+    be carried out.
+    """
+    initial_lattice = []
+    f = open(file_name, "r")
+    for x in f:
+        initial_lattice.append(eval(x))
+    f.close()
+    final_lattice = error_lattice(distance, cycles, initial_lattice)
+    G1 = generate_shortest_path_graph_unique(distance, cycles, final_lattice, fault_nodes)
+    # G2 = generate_shortest_path_graph(distance, cycles, final_lattice, fault_nodes)
+    update_weight(G1,max_value_edge)
+    # update_weight(G2,max_value_edge)
+    return list(nx.max_weight_matching(G1, maxcardinality=True))
+    # return nx.max_weight_matching(G2, maxcardinality=True)

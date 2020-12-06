@@ -4,7 +4,6 @@ import Noise
 import preparation
 import measurement_circuit
 import sampling
-import lattice
 import fault_search
 import numpy as np
 import sys
