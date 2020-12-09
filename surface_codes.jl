@@ -1588,55 +1588,83 @@ function main(d::Int64)
         measurement_values[2,i] = measure!(QS, i)
     end
 
-    # Find the logical state of the surface code
-    initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
-
-    # Quasi-probability distribution -> cumulative density function
-    quasi_prob = [0.985, 0.005, 0.005, 0.005]
-    cdf::Array{Float64,1} = probDistribution(quasi_prob)
-
-    # Collect the measurement values for d cycles
-    noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf)
+    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
     for i in x_ancilla_list
-        measurement_values[1+2,i] = measure!(QS, i)
+        measurement_values[3,i] = measure!(QS, i)
     end
 
     for i in z_ancilla_list
-        measurement_values[1+2,i] = measure!(QS, i)
+        measurement_values[3,i] = measure!(QS, i)
     end
-    for j = 2:d
-        measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
-        for i in x_ancilla_list
-            measurement_values[j+2,i] = measure!(QS, i)
-        end
+
+    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
+    for i in x_ancilla_list
+        measurement_values[4,i] = measure!(QS, i)
+    end
+
+    for i in z_ancilla_list
+        measurement_values[4,i] = measure!(QS, i)
+    end
+
+    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
+    for i in x_ancilla_list
+        measurement_values[5,i] = measure!(QS, i)
+    end
+
+    for i in z_ancilla_list
+        measurement_values[5,i] = measure!(QS, i)
+    end
+
+    display(measurement_values)
+    # Find the logical state of the surface code
+    # initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+
+    # # Quasi-probability distribution -> cumulative density function
+    # quasi_prob = [0.985, 0.005, 0.005, 0.005]
+    # cdf::Array{Float64,1} = probDistribution(quasi_prob)
+
+    # # Collect the measurement values for d cycles
+    # noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf)
+    # for i in x_ancilla_list
+    #     measurement_values[1+2,i] = measure!(QS, i)
+    # end
+
+    # for i in z_ancilla_list
+    #     measurement_values[1+2,i] = measure!(QS, i)
+    # end
+    # for j = 2:d
+    #     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
+    #     for i in x_ancilla_list
+    #         measurement_values[j+2,i] = measure!(QS, i)
+    #     end
     
-        for i in z_ancilla_list
-            measurement_values[j+2,i] = measure!(QS, i)
-        end
-    end
+    #     for i in z_ancilla_list
+    #         measurement_values[j+2,i] = measure!(QS, i)
+    #     end
+    # end
 
-    measurement_cycles::Array{Array{Int64,1},1} = mapslices(x->[x], measurement_values, dims=2)[:]
+    # measurement_cycles::Array{Array{Int64,1},1} = mapslices(x->[x], measurement_values, dims=2)[:]
 
-    # Only run the below function once to generate the initial error lattice
-    # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
-    # measurement_values)
+    # # Only run the below function once to generate the initial error lattice
+    # # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
+    # # measurement_values)
 
-    # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
-    fault_list = find_fault(d, 3, measurement_cycles, x_ancilla_list, z_ancilla_list)
-    display(fault_list)
+    # # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
+    # fault_list = find_fault(d, 3, measurement_cycles, x_ancilla_list, z_ancilla_list)
+    # display(fault_list)
 
-    # # Find the most likely faults by using the shortest path and minimum weight matching algorithms
-    pushfirst!(PyVector(pyimport("sys")."path"), "")
-    fault_search = pyimport("fault_search")
-    fault_edges_vertex = fault_search.main("CSC_G_vertex.txt", 3, 4, fault_list[1], 100)
-    fault_edges_plaquette = fault_search.main("CSC_G_plaquette.txt", 3, 4, fault_list[2], 100)
-    ghost_nodes::Vector{Int64} = [0]
-    for i = 1:d
-        append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
-    end
-    append!(ghost_nodes, range(d*d*(d+1)+1, d*d*(d+1)+d*(d-1), step=1))
-    display(fault_edges_plaquette)
-    display(fault_edges_vertex)
+    # # # Find the most likely faults by using the shortest path and minimum weight matching algorithms
+    # pushfirst!(PyVector(pyimport("sys")."path"), "")
+    # fault_search = pyimport("fault_search")
+    # fault_edges_vertex = fault_search.main("CSC_G_vertex.txt", 3, 4, fault_list[1], 100)
+    # fault_edges_plaquette = fault_search.main("CSC_G_plaquette.txt", 3, 4, fault_list[2], 100)
+    # ghost_nodes::Vector{Int64} = [0]
+    # for i = 1:d
+    #     append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
+    # end
+    # append!(ghost_nodes, range(d*d*(d+1)+1, d*d*(d+1)+d*(d-1), step=1))
+    # display(fault_edges_plaquette)
+    # display(fault_edges_vertex)
 
     # # # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
     # if isempty(fault_edges_plaquette) == false
