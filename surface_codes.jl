@@ -180,6 +180,7 @@ function samplingDistribution(cdf::Array{Float64,1})
             break
         end
     end
+    display(idx)
     return idx
 end
 
@@ -286,6 +287,7 @@ end
 function noisy_prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
     for i in x_ancilla_list
         apply_h!(QS,i)
+        display("prep")
         gateOperation!(QS, samplingDistribution(cdf), i)
     end
 end
@@ -302,6 +304,7 @@ function noisy_north_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::
     for j in z_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j-1, j)
+            display("northz")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j-1)
         end
@@ -320,6 +323,7 @@ function noisy_north_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::
     for j in x_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j, j-1)
+            display("northx")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j-1)
         end
@@ -338,6 +342,7 @@ function noisy_west_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancil
     for j in z_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j-(2*d-1), j)
+            display("westz")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j-(2*d-1))
         end
@@ -356,6 +361,7 @@ function noisy_west_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancil
     for j in x_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j, j-(2*d-1))
+            display("westx")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j-(2*d-1))
         end
@@ -374,6 +380,7 @@ function noisy_east_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancil
     for j in z_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j+(2*d-1), j)
+            display("eastz")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j+(2*d-1))
         end
@@ -392,6 +399,7 @@ function noisy_east_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancil
     for j in x_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j, j+(2*d-1))
+            display("eastx")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j+(2*d-1))
         end
@@ -410,6 +418,7 @@ function noisy_south_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::
     for j in z_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j+1, j)
+            display("southz")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j+1)
         end
@@ -428,6 +437,7 @@ function noisy_south_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::
     for j in x_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j, j+1)
+            display("southx")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j+1)
         end
@@ -1445,7 +1455,7 @@ end
 function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
     # Fix for the errors consisting of the ghost nodes 
-    ancilla_pair::Vector{Int64} = [x_ancilla_list[fault_edge[1]], x_ancilla_list[fault_edge[2]]]
+    ancilla_pair::Vector{Int64} = [x_ancilla_list[minimum(fault_edge)], x_ancilla_list[maximum(fault_edge)]]
     if isempty(intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]]))
         # two faults
         return [intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[1] + d-1]),
@@ -1459,7 +1469,7 @@ end
 function find_data_qubit_x(d::Int64, surface_code_lattice::Dict, z_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
     # Fix for the errors consisting of ghost nodes 
-    ancilla_pair::Vector{Int64} = [z_ancilla_list[fault_edge[1]], z_ancilla_list[fault_edge[2]]]
+    ancilla_pair::Vector{Int64} = [z_ancilla_list[minimum(fault_edge)], z_ancilla_list[maximum(fault_edge)]]
     if isempty(intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]]))
         # two faults
         return [intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[1] + d]),
@@ -1470,37 +1480,70 @@ function find_data_qubit_x(d::Int64, surface_code_lattice::Dict, z_ancilla_list:
     end
 end
 
-function find_error_qubit(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
-    z_ancilla_list::Vector{Int64}, x_edge_list::Tuple, z_edge_list::Tuple)
-    x_error_qubits::Vector{Int64} = [] # qubits where x error occurred 
-    z_error_qubits::Vector{Int64} = [] # qubits where z error occurred
-    # Assuming the nodes of each edge is in increasing order
-    for edge in x_edge_list
-        if edge[2] == edge[1] + d*(d+1)
-            # Fault on an ancilla qubit: find the corresponding qubit at t=0
-            append!(z_error_qubits, edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1))
-        else
-            # Fault on a data qubit: find the corresponding qubit at t=0
-            fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
-            edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
-            append!(z_error_qubits, find_data_qubit_z(d, surface_code_lattice, x_ancilla_list,
-             fault_edge))
-        end
-    end
+function find_x_error_qubits(d::Int64, surface_code_lattice::Dict, z_ancilla_list::Vector{Int64}, 
+    z_edge_list::Array{Tuple{Int64,Int64},1}, ghost_nodes::Vector{Int64})
 
+    x_error_qubits::Vector{Int64} = [] # qubits where x error occurred 
+    
     for edge in z_edge_list
-        if edge[2] == edge[1] + d*(d+1)
-            # Fault on an ancilla qubit: find the corresponding qubit at t=0
-            append!(x_error_qubits, edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1))
+        if (edge[1] in ghost_nodes)
+            if (edge[2] in ghost_nodes)
+            else
+                append!(x_error_qubits, z_ancilla_list[edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)])
+            end
         else
-            # Fault on a data qubit: find the corresponding qubit at t=0
-            fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
-            edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
-            append!(x_error_qubits, find_data_qubit_x(d, surface_code_lattice, z_ancilla_list,
-             fault_edge))
+            if (edge[2] in ghost_nodes)
+                append!(x_error_qubits, z_ancilla_list[edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)])
+            else
+                if edge[2] == edge[1] + d*(d+1) || edge[2] == edge[1] - d*(d+1)
+                    # Fault on an ancilla qubit: find the corresponding qubit at t=0
+                    append!(x_error_qubits, z_ancilla_list[edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)])
+                else
+                    # Fault on a data qubit: find the corresponding qubit at t=0
+                    fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
+                    edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
+                    # append!(x_error_qubits, find_data_qubit_x(d, surface_code_lattice, z_ancilla_list,
+                    # fault_edge))
+                    display(find_data_qubit_x(d, surface_code_lattice, z_ancilla_list,
+                    fault_edge))
+                end
+            end
         end
     end
-    return z_error_qubits, x_error_qubits
+    return x_error_qubits
+end
+
+function find_z_error_qubits(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
+    x_edge_list::Array{Tuple{Int64,Int64},1}, ghost_nodes::Vector{Int64})
+
+    z_error_qubits::Vector{Int64} = [] # qubits where z error occurred
+    
+    for edge in x_edge_list
+        if (edge[1] in ghost_nodes)
+            if (edge[2] in ghost_nodes)
+            else
+                append!(z_error_qubits, x_ancilla_list[edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)])
+            end
+        else
+            if (edge[2] in ghost_nodes)
+                append!(z_error_qubits, x_ancilla_list[edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)])
+            else
+                if edge[2] == edge[1] + d*(d+1) || edge[2] == edge[1] - d*(d+1)
+                    # Fault on an ancilla qubit: find the corresponding qubit at t=0
+                    append!(z_error_qubits, x_ancilla_list[edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)])
+                else
+                    # Fault on a data qubit: find the corresponding qubit at t=0
+                    fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
+                    edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
+                    # append!(z_error_qubits, find_data_qubit_z(d, surface_code_lattice, x_ancilla_list,
+                    # fault_edge))
+                    display(find_data_qubit_z(d, surface_code_lattice, x_ancilla_list,
+                    fault_edge))
+                end
+            end
+        end
+    end
+    return z_error_qubits
 end
 
 function apply_recovery(QS::QuantumState, x_error_qubits::Vector{Int64}, z_error_qubits::Vector{Int64})
@@ -1525,6 +1568,7 @@ function main(d::Int64)
     x_ancilla_list::Vector{Int64} = generate_x_ancillas(d, total_qubits)
     z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)
 
+    # display(find_data_qubit_z(d, connections, x_ancilla_list, [6,3]))
     # measurement of ancilla qubits to initialize all to |0> state
     for i in x_ancilla_list
         measurement_values[1,i] = measure!(QS, i)
@@ -1552,8 +1596,16 @@ function main(d::Int64)
     cdf::Array{Float64,1} = probDistribution(quasi_prob)
 
     # Collect the measurement values for d cycles
-    for j = 1:d
-        noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf)
+    noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf)
+    for i in x_ancilla_list
+        measurement_values[1+2,i] = measure!(QS, i)
+    end
+
+    for i in z_ancilla_list
+        measurement_values[1+2,i] = measure!(QS, i)
+    end
+    for j = 2:d
+        measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
         for i in x_ancilla_list
             measurement_values[j+2,i] = measure!(QS, i)
         end
@@ -1571,21 +1623,36 @@ function main(d::Int64)
 
     # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
     fault_list = find_fault(d, 3, measurement_cycles, x_ancilla_list, z_ancilla_list)
+    display(fault_list)
 
-    # Find the most likely faults by using the shortest path and minimum weight matching algorithms
+    # # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
     fault_search = pyimport("fault_search")
     fault_edges_vertex = fault_search.main("CSC_G_vertex.txt", 3, 4, fault_list[1], 100)
     fault_edges_plaquette = fault_search.main("CSC_G_plaquette.txt", 3, 4, fault_list[2], 100)
+    ghost_nodes::Vector{Int64} = [0]
+    for i = 1:d
+        append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
+    end
+    append!(ghost_nodes, range(d*d*(d+1)+1, d*d*(d+1)+d*(d-1), step=1))
     display(fault_edges_plaquette)
     display(fault_edges_vertex)
 
-    # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
+    # # # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
+    # if isempty(fault_edges_plaquette) == false
+    #     display(find_x_error_qubits(d, connections, z_ancilla_list, fault_edges_plaquette, ghost_nodes))
+    # end
 
-    # Find the logical state of the surface code after recovery and compare with the initial state
-    final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    # if isempty(fault_edges_vertex) == false
+    #     display(find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
+    # end
 
-    # Determine the probability of a logical error occurring given the error probability
+    # # # apply_recovery(QS, errors[1], errors[2])
+
+    # # # Find the logical state of the surface code after recovery and compare with the initial state
+    # # final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+
+    # # Determine the probability of a logical error occurring given the error probability
 
 end
 

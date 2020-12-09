@@ -150,5 +150,12 @@ def main(file_name, distance, cycles, fault_nodes, max_value_edge):
     # G2 = generate_shortest_path_graph(distance, cycles, final_lattice, fault_nodes)
     update_weight(G1,max_value_edge)
     # update_weight(G2,max_value_edge)
-    return list(nx.max_weight_matching(G1, maxcardinality=True))
+    matching = nx.max_weight_matching(G1, maxcardinality=True)
+    match_list = []
+    values = nx.get_node_attributes(G1, "value")
+    for i in matching:
+        a = values[i[0]]
+        b = values[i[1]]
+        match_list.append((a,b))
+    return match_list
     # return nx.max_weight_matching(G2, maxcardinality=True)
