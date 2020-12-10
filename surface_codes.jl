@@ -180,7 +180,7 @@ function samplingDistribution(cdf::Array{Float64,1})
             break
         end
     end
-    display(idx)
+    # display(idx)
     return idx
 end
 
@@ -287,7 +287,7 @@ end
 function noisy_prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
     for i in x_ancilla_list
         apply_h!(QS,i)
-        display("prep")
+        # display("prep")
         gateOperation!(QS, samplingDistribution(cdf), i)
     end
 end
@@ -304,7 +304,7 @@ function noisy_north_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::
     for j in z_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j-1, j)
-            display("northz")
+            # display("northz")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j-1)
         end
@@ -323,7 +323,7 @@ function noisy_north_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::
     for j in x_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j, j-1)
-            display("northx")
+            # display("northx")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j-1)
         end
@@ -342,7 +342,7 @@ function noisy_west_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancil
     for j in z_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j-(2*d-1), j)
-            display("westz")
+            # display("westz")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j-(2*d-1))
         end
@@ -361,7 +361,7 @@ function noisy_west_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancil
     for j in x_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j, j-(2*d-1))
-            display("westx")
+            # display("westx")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j-(2*d-1))
         end
@@ -380,7 +380,7 @@ function noisy_east_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancil
     for j in z_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j+(2*d-1), j)
-            display("eastz")
+            # display("eastz")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j+(2*d-1))
         end
@@ -399,7 +399,7 @@ function noisy_east_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancil
     for j in x_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j, j+(2*d-1))
-            display("eastx")
+            # display("eastx")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j+(2*d-1))
         end
@@ -418,7 +418,7 @@ function noisy_south_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::
     for j in z_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j+1, j)
-            display("southz")
+            # display("southz")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j+1)
         end
@@ -437,7 +437,7 @@ function noisy_south_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::
     for j in x_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j, j+1)
-            display("southx")
+            # display("southx")
             gateOperation!(QS, samplingDistribution(cdf), j)
             gateOperation!(QS, samplingDistribution(cdf), j+1)
         end
@@ -1388,35 +1388,37 @@ function distill_stabilizers(QS::QuantumState, d::Int64)
     stabilizers::Vector{Int64} = []
 
     for row = total_qubits+1:2*total_qubits
-        isStab = false
-        for i in findall(x -> x == 1, QS.tableau[row,1:total_qubits])
-            if i%2 == 0 
-                isStab = false 
-                break
-            else
-                isStab = true
-            end
-        end
-        if isStab == true 
-            append!(stabilizers, QS.tableau[row,:])
-        else
-            for j in findall(x -> x == 1, QS.tableau[row,total_qubits + 1:2*total_qubits])
-                if j%2 == 0
-                    isStab = false 
-                    break
-                else
-                    isStab = true
-                end
-            end
-            if isStab == true 
-                append!(stabilizers, QS.tableau[row,:])
-            end
-        end
+        # isStab = false
+        # for i in findall(x -> x == 1, QS.tableau[row,1:total_qubits])
+        #     if i%2 == 0 
+        #         isStab = false 
+        #         break
+        #     else
+        #         isStab = true
+        #     end
+        # end
+        # if isStab == true 
+        #     append!(stabilizers, QS.tableau[row,:])
+        # else
+        #     for j in findall(x -> x == 1, QS.tableau[row,total_qubits + 1:2*total_qubits])
+        #         if j%2 == 0
+        #             isStab = false 
+        #             break
+        #         else
+        #             isStab = true
+        #         end
+        #     end
+        #     if isStab == true 
+        #         append!(stabilizers, QS.tableau[row,:])
+        #     end
+        # end
+        append!(stabilizers, QS.tableau[row,:])
     end
-    final_stabilizers::Array{Int64,2} = transpose(reshape(stabilizers, (2*total_qubits+1, Int((total_qubits+1)/2))))
-    # I, J, V = findnz(sparse(final_stabilizers))
-    # df = DataFrame([:I => I, :J => J])
-    # CSV.write("spmatrix.csv", df)
+    # final_stabilizers::Array{Int64,2} = transpose(reshape(stabilizers, (2*total_qubits+1, Int((total_qubits+1)/2))))
+    final_stabilizers::Array{Int64,2} = transpose(reshape(stabilizers, (2*total_qubits+1, 25)))
+    I, J, V = findnz(sparse(final_stabilizers))
+    df = DataFrame([:I => I, :J => J])
+    CSV.write("spmatrix1.csv", df)
 
     return final_stabilizers
 end
@@ -1561,7 +1563,6 @@ function main(d::Int64)
     QS = QuantumState(total_qubits)
     connections::Dict = generate_connections(d)
     measurement_values::Array{Int64,2} = zeros(Int64, (d+2, total_qubits))
-    
 
     # generate the different sets of qubits
     data_qubits_list::Vector{Int64} = generate_data_qubits(total_qubits)
@@ -1588,13 +1589,26 @@ function main(d::Int64)
         measurement_values[2,i] = measure!(QS, i)
     end
 
-    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
+    for j in findall(x -> x == -1, measurement_values[2, :])
+        apply_x!(QS, j)
+    end
+    
+    quasi_prob = [0.985, 0.005, 0.005, 0.005]
+    cdf::Array{Float64,1} = probDistribution(quasi_prob)
+
+    noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf) 
     for i in x_ancilla_list
         measurement_values[3,i] = measure!(QS, i)
     end
 
     for i in z_ancilla_list
         measurement_values[3,i] = measure!(QS, i)
+    end
+
+    for j = 1:total_qubits
+        if measurement_values[1,j] != measurement_values[3,j]
+            apply_x!(QS, j)
+        end
     end
 
     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
@@ -1606,16 +1620,19 @@ function main(d::Int64)
         measurement_values[4,i] = measure!(QS, i)
     end
 
-    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
-    for i in x_ancilla_list
-        measurement_values[5,i] = measure!(QS, i)
-    end
-
-    for i in z_ancilla_list
-        measurement_values[5,i] = measure!(QS, i)
-    end
-
+    # distill_stabilizers(QS, d)
     display(measurement_values)
+
+    # measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
+    # for i in x_ancilla_list
+    #     measurement_values[5,i] = measure!(QS, i)
+    # end
+
+    # for i in z_ancilla_list
+    #     measurement_values[5,i] = measure!(QS, i)
+    # end
+
+    # display(measurement_values)
     # Find the logical state of the surface code
     # initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
 
@@ -1685,3 +1702,5 @@ function main(d::Int64)
 end
 
 main(3)
+
+
