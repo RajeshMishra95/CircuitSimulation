@@ -2,16 +2,13 @@ using LinearAlgebra
 using DelimitedFiles
 using Statistics
 using LightGraphs
-# using GraphPlot
-# using Compose
-# using Gadfly
-# import Cairo, Fontconfig
 using SparseArrays
 using CSV
 using DataFrames
 using IterTools
 using PyCall
 using Conda
+using PyPlot
 
 mutable struct QuantumState
     tableau::Matrix
@@ -1362,56 +1359,30 @@ function commutation_check(stablilizers::Array{Int64,2}, d::Int64)
 end
 
 # Recovery Section
-function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
+function find_data_qubit_z(surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
-    # Fix for the errors consisting of the ghost nodes 
-    if isempty(intersect(surface_code_lattice[x_ancilla_list[minimum(fault_edge)]], 
-        surface_code_lattice[x_ancilla_list[maximum(fault_edge)]]))
-        # two faults
-        if maximum(fault_edge) == minimum(fault_edge) + d
-            return [intersect(surface_code_lattice[x_ancilla_list[minimum(fault_edge)]], 
-            surface_code_lattice[x_ancilla_list[minimum(fault_edge) + d-1]]);
-            intersect(surface_code_lattice[x_ancilla_list[maximum(fault_edge)]],
-            surface_code_lattice[x_ancilla_list[maximum(fault_edge) - 1]])]
-        elseif maximum(fault_edge) == minimum(fault_edge) + d - 2
-            return [intersect(surface_code_lattice[x_ancilla_list[minimum(fault_edge)]], 
-            surface_code_lattice[x_ancilla_list[minimum(fault_edge) + d-1]]);
-            intersect(surface_code_lattice[x_ancilla_list[maximum(fault_edge)]],
-            surface_code_lattice[x_ancilla_list[maximum(fault_edge) + 1]])]
-        end
-    else
-        # one fault
-        return intersect(surface_code_lattice[x_ancilla_list[minimum(fault_edge)]], 
-        surface_code_lattice[x_ancilla_list[maximum(fault_edge)]])
+
+    data_qubits::Vector{Int64} = []
+    for node = 1:length(fault_edge)-1
+        append!(data_qubits, intersect(surface_code_lattice[x_ancilla_list[fault_edge[node]]],
+        surface_code_lattice[x_ancilla_list[fault_edge[node+1]]]))
     end
+    return data_qubits
 end
 
-function find_data_qubit_x(d::Int64, surface_code_lattice::Dict, z_ancilla_list::Vector{Int64}, 
+function find_data_qubit_x(surface_code_lattice::Dict, z_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
-    # Fix for the errors consisting of ghost nodes 
-    if isempty(intersect(surface_code_lattice[z_ancilla_list[minimum(fault_edge)]], 
-        surface_code_lattice[z_ancilla_list[maximum(fault_edge)]]))
-        # two faults
-        if maximum(fault_edge) == minimum(fault_edge) + d - 1
-            return [intersect(surface_code_lattice[z_ancilla_list[minimum(fault_edge)]],
-            surface_code_lattice[z_ancilla_list[minimum(fault_edge)+d]]);
-            intersect(surface_code_lattice[z_ancilla_list[maximum(fault_edge)]], 
-            surface_code_lattice[z_ancilla_list[maximum(fault_edge) + 1]])]
-        elseif maximum(fault_edge) == minimum(fault_edge) + d + 1
-            return [intersect(surface_code_lattice[z_ancilla_list[minimum(fault_edge)]],
-            surface_code_lattice[z_ancilla_list[minimum(fault_edge)+d]]);
-            intersect(surface_code_lattice[z_ancilla_list[maximum(fault_edge)]], 
-            surface_code_lattice[z_ancilla_list[maximum(fault_edge) - 1]])]
-        end
-    else
-        # one fault
-        return intersect(surface_code_lattice[z_ancilla_list[minimum(fault_edge)]], 
-        surface_code_lattice[z_ancilla_list[maximum(fault_edge)]])
+
+    data_qubits::Vector{Int64} = []
+    for node = 1:length(fault_edge)-1
+        append!(data_qubits, intersect(surface_code_lattice[z_ancilla_list[fault_edge[node]]],
+        surface_code_lattice[z_ancilla_list[fault_edge[node+1]]]))
     end
+    return data_qubits
 end
 
 function find_x_error_qubits(d::Int64, surface_code_lattice::Dict, z_ancilla_list::Vector{Int64}, 
-    z_edge_list::Array{Tuple{Int64,Int64},1}, ghost_nodes::Vector{Int64})
+    z_edge_list::Array{Tuple{Int64,Int64,Array{Int64,1}},1}, ghost_nodes::Vector{Int64})
 
     x_error_qubits::Vector{Int64} = [] # qubits where x error occurred 
     
@@ -1464,9 +1435,8 @@ function find_x_error_qubits(d::Int64, surface_code_lattice::Dict, z_ancilla_lis
                     # error on ancilla qubit: do nothing
                 else
                     # Fault on a data qubit: find the corresponding qubit at t=0
-                    fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
-                    edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
-                    append!(x_error_qubits, find_data_qubit_x(d, surface_code_lattice, z_ancilla_list,
+                    fault_edge::Vector{Int64} = [i - floor(Int64, i/(d*(d+1)))*d*(d+1) for i in edge[3]]
+                    append!(x_error_qubits, find_data_qubit_x(surface_code_lattice, z_ancilla_list,
                     fault_edge))
                 end
             end
@@ -1476,7 +1446,7 @@ function find_x_error_qubits(d::Int64, surface_code_lattice::Dict, z_ancilla_lis
 end
 
 function find_z_error_qubits(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
-    x_edge_list::Array{Tuple{Int64,Int64},1}, ghost_nodes::Vector{Int64})
+    x_edge_list::Array{Tuple{Int64,Int64,Array{Int64,1}},1}, ghost_nodes::Vector{Int64})
 
     z_error_qubits::Vector{Int64} = [] # qubits where z error occurred
     
@@ -1529,9 +1499,8 @@ function find_z_error_qubits(d::Int64, surface_code_lattice::Dict, x_ancilla_lis
                     # error on ancilla qubit: do nothing
                 else
                     # Fault on a data qubit: find the corresponding qubit at t=0
-                    fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
-                    edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
-                    append!(z_error_qubits, find_data_qubit_z(d, surface_code_lattice, x_ancilla_list,
+                    fault_edge::Vector{Int64} = [i - floor(Int64, i/(d*(d+1)))*d*(d+1) for i in edge[3]]
+                    append!(z_error_qubits, find_data_qubit_z(surface_code_lattice, x_ancilla_list,
                     fault_edge))
                 end
             end
@@ -1549,7 +1518,7 @@ function apply_recovery(QS::QuantumState, x_error_qubits::Vector{Int64}, z_error
     end
 end
 
-function main(d::Int64)
+function main(d::Int64, noise::Float64)
     # initialize values and get the connections between qubits. 
     total_qubits::Int64 = (2*d-1)^2
     QS = QuantumState(total_qubits)
@@ -1570,20 +1539,22 @@ function main(d::Int64)
     for i in z_ancilla_list
         measurement_values[1,i] = measure!(QS, i)
     end
-
+    # display(find_data_qubit_z(d, connections, x_ancilla_list, [5,4]))
+    
     ancilla_reset(QS, measurement_values[1,:])
 
     # Find the logical state of the surface code
     initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
-    display(initial_code_state)
+    # display(initial_code_state)
 
     # Quasi-probability distribution -> cumulative density function
-    quasi_prob = [0.985, 0.005, 0.005, 0.005]
+    quasi_prob::Vector{Float64} = [1-noise, noise/3, noise/3, noise/3]
     cdf::Array{Float64,1} = probDistribution(quasi_prob)
 
     # # Collect the measurement values for d cycles
     for j = 1:d
         noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf)
+        # measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
         for i in x_ancilla_list
             measurement_values[j+1,i] = measure!(QS, i)
         end
@@ -1601,6 +1572,8 @@ function main(d::Int64)
 
     # # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
     fault_list = generate_fault_nodes(d, measurement_values, x_ancilla_list, z_ancilla_list)
+    # display("Fault")
+    # display(fault_list)
 
     # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
@@ -1612,26 +1585,51 @@ function main(d::Int64)
         append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
     end
     append!(ghost_nodes, range(d*d*(d+1)+1, d*d*(d+1)+d*(d-1), step=1))
+    # display("Matching")
+    # display(fault_edges_plaquette)
+    # display(fault_edges_vertex)
 
+    error_x::Vector{Int64} = []
+    error_z::Vector{Int64} = []
     # # # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
     if isempty(fault_edges_plaquette) == false
-        error_x::Vector{Int64} = find_x_error_qubits(d, connections, z_ancilla_list, fault_edges_plaquette, ghost_nodes)
+        append!(error_x, find_x_error_qubits(d, connections, z_ancilla_list, fault_edges_plaquette, ghost_nodes))
     end
 
     if isempty(fault_edges_vertex) == false
-        error_z::Vector{Int64} = find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes)
+        append!(error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
     end
 
-    # apply_recovery(QS, error_x, error_z)
+    # display("Error")
+    # display(error_x)
+    # display(error_z)
+    apply_recovery(QS, error_x, error_z)
 
-    # # # Find the logical state of the surface code after recovery and compare with the initial state
+    # Find the logical state of the surface code after recovery and compare with the initial state
     final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
-    display(final_code_state)
-
-    # # Determine the probability of a logical error occurring given the error probability
-
+    # display(final_code_state)
+    return final_code_state
+    
 end
 
-main(3)
+function run()
+    # main(3)
+    logical_error_list::Vector{Float64} = []
+    physical_error_list = range(0.001, 0.011, length = 11)
+    for j in physical_error_list
+        count::Int64 = 0
+        for i = 1:10000
+            if main(3, j) == 1
+                count += 1
+            end
+        end
+        append!(logical_error_list, count/10000)
+        display(j)
+    end
+    display(logical_error_list)
+    clf()
+    plot(physical_error_list, logical_error_list)
+    gcf()
+end
 
 

@@ -156,6 +156,7 @@ def main(file_name, distance, cycles, fault_nodes, max_value_edge):
     for i in matching:
         a = values[i[0]]
         b = values[i[1]]
-        match_list.append((a,b))
+        c = [values[j] for j in nx.shortest_path(G1, i[0], i[1])]
+        match_list.append((a,b,c))
     return match_list
     # return nx.max_weight_matching(G2, maxcardinality=True)
