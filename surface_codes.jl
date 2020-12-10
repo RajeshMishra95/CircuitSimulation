@@ -518,45 +518,49 @@ function noisy_measurement_circuit!(QS::QuantumState, d::Int64, graph::Dict,
     noisy_prep_x_ancillas!(QS, x_ancilla_list, cdf)
 end
 
-function find_fault(d::Int64, cycles::Int64, measurement_values::Array{Array{Int64,1},1}, 
+function generate_fault_nodes(d::Int64, measurement_cycles::Array{Int64,2},
     x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
-    x_ancilla_values::Vector{Int64} = []
-    z_ancilla_values::Vector{Int64} = []
-    x_fault::Vector{Int64} = []
-    z_fault::Vector{Int64} = []
-
-    for cycle = 1:cycles
-        for i in x_ancilla_list
-            append!(x_ancilla_values, measurement_values[cycle][i]*measurement_values[cycle+2][i])
-        end
-
-        for i in z_ancilla_list
-            append!(z_ancilla_values, measurement_values[cycle][i]*measurement_values[cycle+2][i])
-        end
-
-        # Temporal ghost nodes
-        for i = 1:2*d
-            append!(x_ancilla_values, 0)
-        end
-
-        for i = 1:2*d
-            append!(z_ancilla_values, 0)
+    """
+    Generates a list of nodes (vertex and plaquettes) with faults 
+    numbered in the form of the volume lattice. Measurement cycles
+    are measurement values for multiple cycles. 
+    measurement_cycle[1]: initial values corresponding to +1
+    measurement_cycle[2]: values of 1st cycle
+    measurement_cycle[3]: values of 2nd cycle
+    and so on ...
+    """
+    vertex_fault_list::Vector{Int64} = []
+    for i = 1:size(measurement_cycles)[1]-1
+        for j = 1:length(x_ancilla_list)
+            if measurement_cycles[i,x_ancilla_list[j]]*measurement_cycles[i+1,x_ancilla_list[j]] == -1
+                append!(vertex_fault_list, j+(i-1)*d*(d+1))
+            end
         end
     end
 
-    if -1 in x_ancilla_values
-        x_fault = findall(x -> x == -1, x_ancilla_values)
-    end
-    if -1 in z_ancilla_values
-        z_fault = findall(z -> z == -1, z_ancilla_values)
+    plaquette_fault_list::Vector{Int64} = []
+    for i = 1:size(measurement_cycles)[1]-1
+        for j = 1:length(z_ancilla_list)
+            if measurement_cycles[i,z_ancilla_list[j]]*measurement_cycles[i+1,z_ancilla_list[j]] == -1
+                append!(plaquette_fault_list, j+(i-1)*d*(d+1))
+            end
+        end
     end
 
-    return (x_fault, z_fault)
+    return vertex_fault_list, plaquette_fault_list
+end
+
+function ancilla_reset(QS::QuantumState, measurement::Vector{Int64})
+    for j = 1:length(measurement)
+        if measurement[j] == -1
+            apply_x!(QS, j)
+        end
+    end
 end
 
 function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict, 
     x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64},
-    initial_measurement_values::Vector{Int64})
+    initial_measurement_values::Array{Int64,2})
 
     # initialize 
 
@@ -580,20 +584,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                         for l in error
                             qs = deepcopy(QS)
                             measurement_cycle = deepcopy(initial_measurement_values)
-                            measurement_cycle0 = deepcopy(initial_measurement_values)
-                            measurement_cycle1 = deepcopy(initial_measurement_values)
-                            measurement_cycle2 = deepcopy(initial_measurement_values)
                             # preparation measurement circuit
                             measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                             # ancilla measurement for preparation
                             for i in x_ancilla_list
-                                measurement_cycle0[i] = measure!(qs,i)
+                                measurement_cycle[1,i] = measure!(qs,i)
                             end
 
                             for j in z_ancilla_list
-                                measurement_cycle0[j] = measure!(qs,j)
+                                measurement_cycle[1,j] = measure!(qs,j)
                             end
+
+                            ancilla_reset(qs, measurement_cycle[1,:])
+                            
                             prep_x_ancillas!(qs, x_ancilla_list)
                             apply_noise!(qs, l, x_ancilla_list[j])
                             # carry out the measurement circuits
@@ -610,26 +614,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             end
                             # ancilla measurement for cycle1
                             for i in x_ancilla_list
-                                measurement_cycle1[i] = measure!(qs,i)
+                                measurement_cycle[2,i] = measure!(qs,i)
                             end
 
                             for j in z_ancilla_list
-                                measurement_cycle1[j] = measure!(qs,j)
+                                measurement_cycle[2,j] = measure!(qs,j)
                             end
+
+                            ancilla_reset(qs, measurement_cycle[2,:])
 
                             # ideal measurement circuit
                             measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                             # ancilla measurement for cycle2
                             for i in x_ancilla_list
-                                measurement_cycle2[i] = measure!(qs,i)
+                                measurement_cycle[3,i] = measure!(qs,i)
                             end
 
                             for j in z_ancilla_list
-                                measurement_cycle2[j] = measure!(qs,j)
+                                measurement_cycle[3,j] = measure!(qs,j)
                             end
-                            edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                            measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                            edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                             if length(edges[1]) == 2
                                 add_edge!(G_x, edges[1][1], edges[1][2])
                             end
@@ -642,21 +647,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle = deepcopy(initial_measurement_values)
-                                measurement_cycle0 = deepcopy(initial_measurement_values)
-                                measurement_cycle1 = deepcopy(initial_measurement_values)
-                                measurement_cycle2 = deepcopy(initial_measurement_values)
-                                
                                 # preparation measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for preparation
                                 for i in x_ancilla_list
-                                    measurement_cycle0[i] = measure!(qs,i)
+                                    measurement_cycle[1,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle0[j] = measure!(qs,j)
+                                    measurement_cycle[1,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
                                 prep_x_ancillas!(qs, x_ancilla_list)
                                 # carry out the measurement circuits
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -676,26 +680,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
                                 # ancilla measurement for cycle1
                                 for i in x_ancilla_list
-                                    measurement_cycle1[i] = measure!(qs,i)
+                                    measurement_cycle[2,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle1[j] = measure!(qs,j)
+                                    measurement_cycle[2,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
 
                                 # ideal measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
-                                    measurement_cycle2[i] = measure!(qs,i)
+                                    measurement_cycle[3,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle2[j] = measure!(qs,j)
+                                    measurement_cycle[3,j] = measure!(qs,j)
                                 end
-                                edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                                measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
                                 end
@@ -709,21 +714,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle = deepcopy(initial_measurement_values)
-                                measurement_cycle0 = deepcopy(initial_measurement_values)
-                                measurement_cycle1 = deepcopy(initial_measurement_values)
-                                measurement_cycle2 = deepcopy(initial_measurement_values)
-                                
                                 # preparation measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for preparation
                                 for i in x_ancilla_list
-                                    measurement_cycle0[i] = measure!(qs,i)
+                                    measurement_cycle[1,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle0[j] = measure!(qs,j)
+                                    measurement_cycle[1,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
                                 prep_x_ancillas!(qs, x_ancilla_list)
                                 # carry out the measurement circuits
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -743,26 +747,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
                                 # ancilla measurement for cycle1
                                 for i in x_ancilla_list
-                                    measurement_cycle1[i] = measure!(qs,i)
+                                    measurement_cycle[2,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle1[j] = measure!(qs,j)
+                                    measurement_cycle[2,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
 
                                 # ideal measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
-                                    measurement_cycle2[i] = measure!(qs,i)
+                                    measurement_cycle[3,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle2[j] = measure!(qs,j)
+                                    measurement_cycle[3,j] = measure!(qs,j)
                                 end
-                                edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                                measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
                                 end
@@ -776,21 +781,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle = deepcopy(initial_measurement_values)
-                                measurement_cycle0 = deepcopy(initial_measurement_values)
-                                measurement_cycle1 = deepcopy(initial_measurement_values)
-                                measurement_cycle2 = deepcopy(initial_measurement_values)
-                                
                                 # preparation measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for preparation
                                 for i in x_ancilla_list
-                                    measurement_cycle0[i] = measure!(qs,i)
+                                    measurement_cycle[1,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle0[j] = measure!(qs,j)
+                                    measurement_cycle[1,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
                                 prep_x_ancillas!(qs, x_ancilla_list)
                                 # carry out the measurement circuits
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -810,26 +814,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
                                 # ancilla measurement for cycle1
                                 for i in x_ancilla_list
-                                    measurement_cycle1[i] = measure!(qs,i)
+                                    measurement_cycle[2,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle1[j] = measure!(qs,j)
+                                    measurement_cycle[2,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
 
                                 # ideal measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
-                                    measurement_cycle2[i] = measure!(qs,i)
+                                    measurement_cycle[3,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle2[j] = measure!(qs,j)
+                                    measurement_cycle[3,j] = measure!(qs,j)
                                 end
-                                edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                                measurement_cycle2], x_ancilla_list, z_ancilla_list) 
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
                                 end
@@ -843,21 +848,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle = deepcopy(initial_measurement_values)
-                                measurement_cycle0 = deepcopy(initial_measurement_values)
-                                measurement_cycle1 = deepcopy(initial_measurement_values)
-                                measurement_cycle2 = deepcopy(initial_measurement_values)
-                                
                                 # preparation measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for preparation
                                 for i in x_ancilla_list
-                                    measurement_cycle0[i] = measure!(qs,i)
+                                    measurement_cycle[1,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle0[j] = measure!(qs,j)
+                                    measurement_cycle[1,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
                                 prep_x_ancillas!(qs, x_ancilla_list)
                                 # carry out the measurement circuits
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -877,26 +881,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
                                 # ancilla measurement for cycle1
                                 for i in x_ancilla_list
-                                    measurement_cycle1[i] = measure!(qs,i)
+                                    measurement_cycle[2,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle1[j] = measure!(qs,j)
+                                    measurement_cycle[2,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
 
                                 # ideal measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
-                                    measurement_cycle2[i] = measure!(qs,i)
+                                    measurement_cycle[3,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle2[j] = measure!(qs,j)
+                                    measurement_cycle[3,j] = measure!(qs,j)
                                 end
-                                edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                                measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
                                 end
@@ -910,21 +915,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                         for l in error
                             qs = deepcopy(QS)
                             measurement_cycle = deepcopy(initial_measurement_values)
-                            measurement_cycle0 = deepcopy(initial_measurement_values)
-                            measurement_cycle1 = deepcopy(initial_measurement_values)
-                            measurement_cycle2 = deepcopy(initial_measurement_values)
-                            
                             # preparation measurement circuit
                             measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                             # ancilla measurement for preparation
                             for i in x_ancilla_list
-                                measurement_cycle0[i] = measure!(qs,i)
+                                measurement_cycle[1,i] = measure!(qs,i)
                             end
 
                             for j in z_ancilla_list
-                                measurement_cycle0[j] = measure!(qs,j)
+                                measurement_cycle[1,j] = measure!(qs,j)
                             end
+
+                            ancilla_reset(qs, measurement_cycle[1,:])
+
                             prep_x_ancillas!(qs, x_ancilla_list)
                             # carry out the measurement circuits
                             north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -941,33 +945,34 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             apply_noise!(qs, l, x_ancilla_list[j])
                             # ancilla measurement for cycle1
                             for i in x_ancilla_list
-                                measurement_cycle1[i] = measure!(qs,i)
+                                measurement_cycle[2,i] = measure!(qs,i)
                             end
 
                             for j in z_ancilla_list
-                                measurement_cycle1[j] = measure!(qs,j)
+                                measurement_cycle[2,j] = measure!(qs,j)
                             end
+
+                            ancilla_reset(qs, measurement_cycle[2,:])
 
                             # ideal measurement circuit
                             measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                             # ancilla measurement for cycle2
                             for i in x_ancilla_list
-                                measurement_cycle2[i] = measure!(qs,i)
+                                measurement_cycle[3,i] = measure!(qs,i)
                             end
 
                             for j in z_ancilla_list
-                                measurement_cycle2[j] = measure!(qs,j)
+                                measurement_cycle[3,j] = measure!(qs,j)
                             end
-                            edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                            measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                            edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                             if length(edges[1]) == 2
                                 add_edge!(G_x, edges[1][1], edges[1][2])
                             end
                             if length(edges[2]) == 2
                                 add_edge!(G_z, edges[2][1], edges[2][2])
                             end
-                        end 
+                        end
                     end
                 end
             end
@@ -981,21 +986,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle = deepcopy(initial_measurement_values)
-                                measurement_cycle0 = deepcopy(initial_measurement_values)
-                                measurement_cycle1 = deepcopy(initial_measurement_values)
-                                measurement_cycle2 = deepcopy(initial_measurement_values)
-                                
                                 # preparation measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for preparation
                                 for i in x_ancilla_list
-                                    measurement_cycle0[i] = measure!(qs,i)
+                                    measurement_cycle[1,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle0[j] = measure!(qs,j)
+                                    measurement_cycle[1,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
                                 prep_x_ancillas!(qs, x_ancilla_list)
                                 # carry out the measurement circuits
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -1015,26 +1019,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
                                 # ancilla measurement for cycle1
                                 for i in x_ancilla_list
-                                    measurement_cycle1[i] = measure!(qs,i)
+                                    measurement_cycle[2,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle1[j] = measure!(qs,j)
+                                    measurement_cycle[2,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
 
                                 # ideal measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
-                                    measurement_cycle2[i] = measure!(qs,i)
+                                    measurement_cycle[3,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle2[j] = measure!(qs,j)
+                                    measurement_cycle[3,j] = measure!(qs,j)
                                 end
-                                edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                                measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
                                 end
@@ -1048,21 +1053,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle = deepcopy(initial_measurement_values)
-                                measurement_cycle0 = deepcopy(initial_measurement_values)
-                                measurement_cycle1 = deepcopy(initial_measurement_values)
-                                measurement_cycle2 = deepcopy(initial_measurement_values)
-                                
                                 # preparation measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for preparation
                                 for i in x_ancilla_list
-                                    measurement_cycle0[i] = measure!(qs,i)
+                                    measurement_cycle[1,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle0[j] = measure!(qs,j)
+                                    measurement_cycle[1,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
                                 prep_x_ancillas!(qs, x_ancilla_list)
                                 # carry out the measurement circuits
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -1082,27 +1086,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
                                 # ancilla measurement for cycle1
                                 for i in x_ancilla_list
-                                    measurement_cycle1[i] = measure!(qs,i)
+                                    measurement_cycle[2,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle1[j] = measure!(qs,j)
+                                    measurement_cycle[2,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
 
                                 # ideal measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
-                                    measurement_cycle2[i] = measure!(qs,i)
+                                    measurement_cycle[3,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle2[j] = measure!(qs,j)
+                                    measurement_cycle[3,j] = measure!(qs,j)
                                 end
-
-                                edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                                measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
                                 end
@@ -1116,21 +1120,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle = deepcopy(initial_measurement_values)
-                                measurement_cycle0 = deepcopy(initial_measurement_values)
-                                measurement_cycle1 = deepcopy(initial_measurement_values)
-                                measurement_cycle2 = deepcopy(initial_measurement_values)
-                                
                                 # preparation measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for preparation
                                 for i in x_ancilla_list
-                                    measurement_cycle0[i] = measure!(qs,i)
+                                    measurement_cycle[1,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle0[j] = measure!(qs,j)
+                                    measurement_cycle[1,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
                                 prep_x_ancillas!(qs, x_ancilla_list)
                                 # carry out the measurement circuits
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -1150,26 +1153,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
                                 # ancilla measurement for cycle1
                                 for i in x_ancilla_list
-                                    measurement_cycle1[i] = measure!(qs,i)
+                                    measurement_cycle[2,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle1[j] = measure!(qs,j)
+                                    measurement_cycle[2,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
 
                                 # ideal measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
-                                    measurement_cycle2[i] = measure!(qs,i)
+                                    measurement_cycle[3,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle2[j] = measure!(qs,j)
+                                    measurement_cycle[3,j] = measure!(qs,j)
                                 end
-                                edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                                measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
                                 end
@@ -1183,21 +1187,20 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                             for m in error
                                 qs = deepcopy(QS)
                                 measurement_cycle = deepcopy(initial_measurement_values)
-                                measurement_cycle0 = deepcopy(initial_measurement_values)
-                                measurement_cycle1 = deepcopy(initial_measurement_values)
-                                measurement_cycle2 = deepcopy(initial_measurement_values)
-                                
                                 # preparation measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for preparation
                                 for i in x_ancilla_list
-                                    measurement_cycle0[i] = measure!(qs,i)
+                                    measurement_cycle[1,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle0[j] = measure!(qs,j)
+                                    measurement_cycle[1,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
                                 prep_x_ancillas!(qs, x_ancilla_list)
                                 # carry out the measurement circuits
                                 north_z_ancillas!(qs, graph, z_ancilla_list)
@@ -1217,26 +1220,27 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
                                 end
                                 # ancilla measurement for cycle1
                                 for i in x_ancilla_list
-                                    measurement_cycle1[i] = measure!(qs,i)
+                                    measurement_cycle[2,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle1[j] = measure!(qs,j)
+                                    measurement_cycle[2,j] = measure!(qs,j)
                                 end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
 
                                 # ideal measurement circuit
                                 measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
 
                                 # ancilla measurement for cycle2
                                 for i in x_ancilla_list
-                                    measurement_cycle2[i] = measure!(qs,i)
+                                    measurement_cycle[3,i] = measure!(qs,i)
                                 end
 
                                 for j in z_ancilla_list
-                                    measurement_cycle2[j] = measure!(qs,j)
+                                    measurement_cycle[3,j] = measure!(qs,j)
                                 end
-                                edges = find_fault(d, 2, [measurement_cycle, measurement_cycle0, measurement_cycle1, 
-                                measurement_cycle2], x_ancilla_list, z_ancilla_list)
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
                                 if length(edges[1]) == 2
                                     add_edge!(G_x, edges[1][1], edges[1][2])
                                 end
@@ -1273,113 +1277,19 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
 
     CSC_G_x = findnz(adjacency_matrix(G_x))
     CSC_G_z = findnz(adjacency_matrix(G_z))
-    open("CSC_G_vertex.txt", "w") do f
+    open("CSC_G_vertex1.txt", "w") do f
         for i = 1:length(CSC_G_x[1])
             println(f, (CSC_G_x[1][i], CSC_G_x[2][i]))
         end
     end
 
-    open("CSC_G_plaquette.txt", "w") do f
+    open("CSC_G_plaquette1.txt", "w") do f
         for i = 1:length(CSC_G_z[1])
             println(f, (CSC_G_z[1][i], CSC_G_z[2][i]))
         end
     end
 
 end
-
-function generate_fault_nodes(d::Int64, measurement_cycles::Array{Array{Int64,1},1},
-    x_ancilla_list::Vector{Int64}, z_ancilla_list::Vector{Int64})
-    """
-    Generates a list of nodes (vertex and plaquettes) with faults 
-    numbered in the form of the volume lattice. Measurement cycles
-    are measurement values for multiple cycles. 
-    measurement_cycle[1]: initial values corresponding to +1
-    measurement_cycle[2]: values of 1st cycle
-    measurement_cycle[3]: values of 2nd cycle
-    and so on ...
-    """
-    vertex_fault_list::Vector{Int64} = []
-    for i = 1:length(measurement_cycles)-1
-        for j = 1:length(x_ancilla_list)
-            if measurement_cycles[i][x_ancilla_list[j]]*measurement_cycles[i+1][x_ancilla_list[j]] == -1
-                append!(vertex_fault_list, j+(i-1)*d*(d+1))
-            end
-        end
-    end
-
-    plaquette_fault_list::Vector{Int64} = []
-    for i = 1:length(measurement_cycles)-1
-        for j = 1:length(z_ancilla_list)
-            if measurement_cycles[i][z_ancilla_list[j]]*measurement_cycles[i+1][z_ancilla_list[j]] == -1
-                append!(plaquette_fault_list, j+(i-1)*d*(d+1))
-            end
-        end
-    end
-
-    return vertex_fault_list, plaquette_fault_list
-end
-
-# function error_lattice(d::Int64, cycles::Int64, initial_lattice::Array{Array{Int64},1})
-#     """
-#     Creats the adjacency list of the volume lattice using the initial lattice.
-#     """
-#     @assert cycles > 2
-#     final_lattice = deepcopy(initial_lattice)
-#     inc = d*(d+1)
-#     for j = 1:cycles-2
-#         for i in initial_lattice
-#             append!(final_lattice, (i[1]+j*inc, i[2]+j*inc))
-#         end
-#     end
-#     return final_lattice
-# end
-
-# function build_lattice_graph(d::Int64, cycles::Int64, edges::Array{Array{Int64,1}})
-#     """Generates a graph given the arguments."""
-#     G = SimpleGraph(d*(d+1)*cycles)
-#     for i in edges
-#         add_edge!(G, i[1], i[2])
-#     end
-#     return G
-# end
-
-# function generate_shortest_path_graph(d::Int64, cycles::Int64, volume_lattice::Array{Array{Int64,1}},
-#     fault_nodes::Vector{Int64})
-#     """
-#     Takes the fault node and generates a graph containing the fault nodes and the 
-#     shortest distance between each of the fault nodes and also between the fault nodes
-#     their corresponding spatial and temporal ghost nodes. Here, ghost can be shared by 
-#     multiple real nodes.
-#     """
-#     Graph_volume_lattice = build_lattice_graph(d,cycles,volume_lattice)
-#     Graph_fault = SimpleWeightedGraphs(3*length(fault_nodes))
-#     for pair in Iterators.product(fault_nodes, fault_nodes)
-#         w = gdistances(Graph_volume_lattice, pair[1])[par[2]]
-#         add_edge!(Graph_fault, pair[1], pair[2], w)
-#     end
-
-#     # Adding the spatial ghost nodes
-#     total_nodes_per_layer = d*(d+1)
-#     total_real_nodes = d*(d-1)
-#     all_ghost_nodes = []
-#     for i in fault_nodes
-#         spatial_ghost_nodes = range((int(i/total_nodes_per_layer))*total_nodes_per_layer + total_real_nodes + 1,
-#         (int(i/total_nodes_per_layer) + 1)*total_nodes_per_layer)
-#         all_shortest_paths = []
-#         for j in spatial_ghost_nodes
-#             append!(all_shortest_paths, gdistances(Graph_volume_lattice, i)[j])
-#         end
-#         append!(all_ghost_nodes, spatial_ghost_nodes[argmin(all_shortest_paths)])
-#         add_vertex!(Graph_fault, spatial_ghost_nodes[argmin(all_shortest_paths)])
-#     end
-# end
-
-# function generate_shortest_path_graph_unique(d::Int64, cycles::Int64, volume_lattice::Array{Array{Int64,1}},
-#     fault_nodes::Vector{Int64})
-# end
-
-# function update_weight(graph::SimpleGraph, value)
-# end
 
 function distill_stabilizers(QS::QuantumState, d::Int64)
     """ This function finds the rows that corresponds to the uncoupled stabilizers. """
@@ -1388,34 +1298,32 @@ function distill_stabilizers(QS::QuantumState, d::Int64)
     stabilizers::Vector{Int64} = []
 
     for row = total_qubits+1:2*total_qubits
-        # isStab = false
-        # for i in findall(x -> x == 1, QS.tableau[row,1:total_qubits])
-        #     if i%2 == 0 
-        #         isStab = false 
-        #         break
-        #     else
-        #         isStab = true
-        #     end
-        # end
-        # if isStab == true 
-        #     append!(stabilizers, QS.tableau[row,:])
-        # else
-        #     for j in findall(x -> x == 1, QS.tableau[row,total_qubits + 1:2*total_qubits])
-        #         if j%2 == 0
-        #             isStab = false 
-        #             break
-        #         else
-        #             isStab = true
-        #         end
-        #     end
-        #     if isStab == true 
-        #         append!(stabilizers, QS.tableau[row,:])
-        #     end
-        # end
-        append!(stabilizers, QS.tableau[row,:])
+        isStab = false
+        for i in findall(x -> x == 1, QS.tableau[row,1:total_qubits])
+            if i%2 == 0 
+                isStab = false 
+                break
+            else
+                isStab = true
+            end
+        end
+        if isStab == true 
+            append!(stabilizers, QS.tableau[row,:])
+        else
+            for j in findall(x -> x == 1, QS.tableau[row,total_qubits + 1:2*total_qubits])
+                if j%2 == 0
+                    isStab = false 
+                    break
+                else
+                    isStab = true
+                end
+            end
+            if isStab == true 
+                append!(stabilizers, QS.tableau[row,:])
+            end
+        end
     end
-    # final_stabilizers::Array{Int64,2} = transpose(reshape(stabilizers, (2*total_qubits+1, Int((total_qubits+1)/2))))
-    final_stabilizers::Array{Int64,2} = transpose(reshape(stabilizers, (2*total_qubits+1, 25)))
+    final_stabilizers::Array{Int64,2} = transpose(reshape(stabilizers, (2*total_qubits+1, Int((total_qubits+1)/2))))
     I, J, V = findnz(sparse(final_stabilizers))
     df = DataFrame([:I => I, :J => J])
     CSV.write("spmatrix1.csv", df)
@@ -1457,28 +1365,48 @@ end
 function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
     # Fix for the errors consisting of the ghost nodes 
-    ancilla_pair::Vector{Int64} = [x_ancilla_list[minimum(fault_edge)], x_ancilla_list[maximum(fault_edge)]]
-    if isempty(intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]]))
+    if isempty(intersect(surface_code_lattice[x_ancilla_list[minimum(fault_edge)]], 
+        surface_code_lattice[x_ancilla_list[maximum(fault_edge)]]))
         # two faults
-        return [intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[1] + d-1]),
-        intersect(surface_code_lattice[ancilla_pair[2]], surface_code_lattice[ancilla_pair[2] + 1])]
+        if maximum(fault_edge) == minimum(fault_edge) + d
+            return [intersect(surface_code_lattice[x_ancilla_list[minimum(fault_edge)]], 
+            surface_code_lattice[x_ancilla_list[minimum(fault_edge) + d-1]]);
+            intersect(surface_code_lattice[x_ancilla_list[maximum(fault_edge)]],
+            surface_code_lattice[x_ancilla_list[maximum(fault_edge) - 1]])]
+        elseif maximum(fault_edge) == minimum(fault_edge) + d - 2
+            return [intersect(surface_code_lattice[x_ancilla_list[minimum(fault_edge)]], 
+            surface_code_lattice[x_ancilla_list[minimum(fault_edge) + d-1]]);
+            intersect(surface_code_lattice[x_ancilla_list[maximum(fault_edge)]],
+            surface_code_lattice[x_ancilla_list[maximum(fault_edge) + 1]])]
+        end
     else
         # one fault
-        return intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]])
+        return intersect(surface_code_lattice[x_ancilla_list[minimum(fault_edge)]], 
+        surface_code_lattice[x_ancilla_list[maximum(fault_edge)]])
     end
 end
 
 function find_data_qubit_x(d::Int64, surface_code_lattice::Dict, z_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
     # Fix for the errors consisting of ghost nodes 
-    ancilla_pair::Vector{Int64} = [z_ancilla_list[minimum(fault_edge)], z_ancilla_list[maximum(fault_edge)]]
-    if isempty(intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]]))
+    if isempty(intersect(surface_code_lattice[z_ancilla_list[minimum(fault_edge)]], 
+        surface_code_lattice[z_ancilla_list[maximum(fault_edge)]]))
         # two faults
-        return [intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[1] + d]),
-        intersect(surface_code_lattice[ancilla_pair[2]], surface_code_lattice[ancilla_pair[2] + 1])]
+        if maximum(fault_edge) == minimum(fault_edge) + d - 1
+            return [intersect(surface_code_lattice[z_ancilla_list[minimum(fault_edge)]],
+            surface_code_lattice[z_ancilla_list[minimum(fault_edge)+d]]);
+            intersect(surface_code_lattice[z_ancilla_list[maximum(fault_edge)]], 
+            surface_code_lattice[z_ancilla_list[maximum(fault_edge) + 1]])]
+        elseif maximum(fault_edge) == minimum(fault_edge) + d + 1
+            return [intersect(surface_code_lattice[z_ancilla_list[minimum(fault_edge)]],
+            surface_code_lattice[z_ancilla_list[minimum(fault_edge)+d]]);
+            intersect(surface_code_lattice[z_ancilla_list[maximum(fault_edge)]], 
+            surface_code_lattice[z_ancilla_list[maximum(fault_edge) - 1]])]
+        end
     else
         # one fault
-        return intersect(surface_code_lattice[ancilla_pair[1]], surface_code_lattice[ancilla_pair[2]])
+        return intersect(surface_code_lattice[z_ancilla_list[minimum(fault_edge)]], 
+        surface_code_lattice[z_ancilla_list[maximum(fault_edge)]])
     end
 end
 
@@ -1490,23 +1418,55 @@ function find_x_error_qubits(d::Int64, surface_code_lattice::Dict, z_ancilla_lis
     for edge in z_edge_list
         if (edge[1] in ghost_nodes)
             if (edge[2] in ghost_nodes)
+                # both ghost nodes: do nothing
             else
-                append!(x_error_qubits, z_ancilla_list[edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)])
+                # one ghost and one real: find corresponding data qubit
+                if (edge[1] - edge[2]) % (d*(d+1)) == 0
+                    # real node with temporal ghost node: do nothing
+                else
+                    if z_ancilla_list[edge[2]-floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)] < ((2*d-1)^2)/2
+                        data_qubit = z_ancilla_list[edge[2]-floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)] - (2*d-1)
+                        while data_qubit > 0
+                            append!(x_error_qubits, data_qubit)
+                            data_qubit -= 2*(2*d-1)
+                        end
+                    else
+                        data_qubit = z_ancilla_list[edge[2]-floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)] + (2*d-1)
+                        while data_qubit < ((2*d-1)^2)
+                            append!(x_error_qubits, data_qubit)
+                            data_qubit += 2*(2*d-1)
+                        end
+                    end
+                end
             end
         else
             if (edge[2] in ghost_nodes)
-                append!(x_error_qubits, z_ancilla_list[edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)])
+                # one ghost and one real: find corresponding data qubit 
+                if (edge[2] - edge[1]) % (d*(d+1)) == 0
+                    # real node with temporal ghost node: do nothing
+                else
+                    if z_ancilla_list[edge[1]-floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)] < ((2*d-1)^2)/2
+                        data_qubit = z_ancilla_list[edge[1]-floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)] - (2*d-1)
+                        while data_qubit > 0
+                            append!(x_error_qubits, data_qubit)
+                            data_qubit -= 2*(2*d-1)
+                        end
+                    else
+                        data_qubit = z_ancilla_list[edge[1]-floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)] + (2*d-1)
+                        while data_qubit < ((2*d-1)^2)
+                            append!(x_error_qubits, data_qubit)
+                            data_qubit += 2*(2*d-1)
+                        end
+                    end
+                end
             else
                 if edge[2] == edge[1] + d*(d+1) || edge[2] == edge[1] - d*(d+1)
-                    # Fault on an ancilla qubit: find the corresponding qubit at t=0
-                    append!(x_error_qubits, z_ancilla_list[edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)])
+                    # error on ancilla qubit: do nothing
                 else
                     # Fault on a data qubit: find the corresponding qubit at t=0
                     fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
                     edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
-                    # append!(x_error_qubits, find_data_qubit_x(d, surface_code_lattice, z_ancilla_list,
-                    # fault_edge))
-                    display(find_data_qubit_x(d, surface_code_lattice, z_ancilla_list,
+                    append!(x_error_qubits, find_data_qubit_x(d, surface_code_lattice, z_ancilla_list,
                     fault_edge))
                 end
             end
@@ -1523,23 +1483,55 @@ function find_z_error_qubits(d::Int64, surface_code_lattice::Dict, x_ancilla_lis
     for edge in x_edge_list
         if (edge[1] in ghost_nodes)
             if (edge[2] in ghost_nodes)
+                # both ghost nodes: do nothing
             else
-                append!(z_error_qubits, x_ancilla_list[edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)])
+                # one ghost and one real: find corresponding data qubit 
+                if (edge[1] - edge[2]) % (d*(d+1)) == 0
+                    # real node with temporal ghost node: do nothing
+                else
+                    if x_ancilla_list[edge[2]-floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)] % (2*d-1) < d
+                        data_qubit = x_ancilla_list[edge[2]-floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)] - 1
+                        while data_qubit > 0 && data_qubit % (2*d-1) < d
+                            append!(z_error_qubits, data_qubit)
+                            data_qubit -= 2
+                        end
+                    else
+                        data_qubit = x_ancilla_list[edge[2]-floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)] + 1
+                        while (data_qubit <= (2*d-1)^2) && (data_qubit % (2*d-1) > d || data_qubit % (2*d-1) == 0)
+                            append!(z_error_qubits, data_qubit)
+                            data_qubit += 2
+                        end
+                    end
+                end
             end
         else
             if (edge[2] in ghost_nodes)
-                append!(z_error_qubits, x_ancilla_list[edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)])
+                # one ghost and one real: find corresponding data qubit 
+                if (edge[2] - edge[1]) % (d*(d+1)) == 0
+                    # real node with temporal ghost node: do nothing
+                else
+                    if x_ancilla_list[edge[1]-floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)] % (2*d-1) < d
+                        data_qubit = x_ancilla_list[edge[1]-floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)] - 1
+                        while data_qubit > 0 && data_qubit % (2*d-1) < d
+                            append!(z_error_qubits, data_qubit)
+                            data_qubit -= 2
+                        end
+                    else
+                        data_qubit = x_ancilla_list[edge[1]-floor(Int64, edge[1]/(d*(d+1)))*d*(d+1)] + 1
+                        while (data_qubit <= (2*d-1)^2) && (data_qubit % (2*d-1) > d || data_qubit % (2*d-1) == 0)
+                            append!(z_error_qubits, data_qubit)
+                            data_qubit += 2
+                        end
+                    end
+                end
             else
                 if edge[2] == edge[1] + d*(d+1) || edge[2] == edge[1] - d*(d+1)
-                    # Fault on an ancilla qubit: find the corresponding qubit at t=0
-                    append!(z_error_qubits, x_ancilla_list[edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)])
+                    # error on ancilla qubit: do nothing
                 else
                     # Fault on a data qubit: find the corresponding qubit at t=0
                     fault_edge::Vector{Int64} = [edge[1] - floor(Int64, edge[1]/(d*(d+1)))*d*(d+1), 
                     edge[2] - floor(Int64, edge[2]/(d*(d+1)))*d*(d+1)]
-                    # append!(z_error_qubits, find_data_qubit_z(d, surface_code_lattice, x_ancilla_list,
-                    # fault_edge))
-                    display(find_data_qubit_z(d, surface_code_lattice, x_ancilla_list,
+                    append!(z_error_qubits, find_data_qubit_z(d, surface_code_lattice, x_ancilla_list,
                     fault_edge))
                 end
             end
@@ -1562,140 +1554,79 @@ function main(d::Int64)
     total_qubits::Int64 = (2*d-1)^2
     QS = QuantumState(total_qubits)
     connections::Dict = generate_connections(d)
-    measurement_values::Array{Int64,2} = zeros(Int64, (d+2, total_qubits))
+    measurement_values::Array{Int64,2} = zeros(Int64, (d+1, total_qubits))
 
     # generate the different sets of qubits
     data_qubits_list::Vector{Int64} = generate_data_qubits(total_qubits)
     x_ancilla_list::Vector{Int64} = generate_x_ancillas(d, total_qubits)
     z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)
 
-    # display(find_data_qubit_z(d, connections, x_ancilla_list, [6,3]))
-    # measurement of ancilla qubits to initialize all to |0> state
-    for i in x_ancilla_list
-        measurement_values[1,i] = measure!(QS, i)
-    end
-
-    for i in z_ancilla_list
-        measurement_values[1,i] = measure!(QS, i)
-    end
-
     # One round of ideal measurement circuit for preparation of ancillas
     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
     for i in x_ancilla_list
-        measurement_values[2,i] = measure!(QS, i)
+        measurement_values[1,i] = measure!(QS, i)
     end
 
     for i in z_ancilla_list
-        measurement_values[2,i] = measure!(QS, i)
+        measurement_values[1,i] = measure!(QS, i)
     end
 
-    for j in findall(x -> x == -1, measurement_values[2, :])
-        apply_x!(QS, j)
-    end
-    
+    ancilla_reset(QS, measurement_values[1,:])
+
+    # Find the logical state of the surface code
+    initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    display(initial_code_state)
+
+    # Quasi-probability distribution -> cumulative density function
     quasi_prob = [0.985, 0.005, 0.005, 0.005]
     cdf::Array{Float64,1} = probDistribution(quasi_prob)
 
-    noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf) 
-    for i in x_ancilla_list
-        measurement_values[3,i] = measure!(QS, i)
-    end
-
-    for i in z_ancilla_list
-        measurement_values[3,i] = measure!(QS, i)
-    end
-
-    for j = 1:total_qubits
-        if measurement_values[1,j] != measurement_values[3,j]
-            apply_x!(QS, j)
-        end
-    end
-
-    measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
-    for i in x_ancilla_list
-        measurement_values[4,i] = measure!(QS, i)
-    end
-
-    for i in z_ancilla_list
-        measurement_values[4,i] = measure!(QS, i)
-    end
-
-    # distill_stabilizers(QS, d)
-    display(measurement_values)
-
-    # measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
-    # for i in x_ancilla_list
-    #     measurement_values[5,i] = measure!(QS, i)
-    # end
-
-    # for i in z_ancilla_list
-    #     measurement_values[5,i] = measure!(QS, i)
-    # end
-
-    # display(measurement_values)
-    # Find the logical state of the surface code
-    # initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
-
-    # # Quasi-probability distribution -> cumulative density function
-    # quasi_prob = [0.985, 0.005, 0.005, 0.005]
-    # cdf::Array{Float64,1} = probDistribution(quasi_prob)
-
     # # Collect the measurement values for d cycles
-    # noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf)
-    # for i in x_ancilla_list
-    #     measurement_values[1+2,i] = measure!(QS, i)
-    # end
-
-    # for i in z_ancilla_list
-    #     measurement_values[1+2,i] = measure!(QS, i)
-    # end
-    # for j = 2:d
-    #     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
-    #     for i in x_ancilla_list
-    #         measurement_values[j+2,i] = measure!(QS, i)
-    #     end
+    for j = 1:d
+        noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf)
+        for i in x_ancilla_list
+            measurement_values[j+1,i] = measure!(QS, i)
+        end
     
-    #     for i in z_ancilla_list
-    #         measurement_values[j+2,i] = measure!(QS, i)
-    #     end
-    # end
+        for i in z_ancilla_list
+            measurement_values[j+1,i] = measure!(QS, i)
+        end
 
-    # measurement_cycles::Array{Array{Int64,1},1} = mapslices(x->[x], measurement_values, dims=2)[:]
+        ancilla_reset(QS, measurement_values[j+1,:])
+    end
 
     # # Only run the below function once to generate the initial error lattice
-    # # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
-    # # measurement_values)
+    # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
+    # zeros(Int64, (d, total_qubits)))
 
     # # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
-    # fault_list = find_fault(d, 3, measurement_cycles, x_ancilla_list, z_ancilla_list)
-    # display(fault_list)
+    fault_list = generate_fault_nodes(d, measurement_values, x_ancilla_list, z_ancilla_list)
 
-    # # # Find the most likely faults by using the shortest path and minimum weight matching algorithms
-    # pushfirst!(PyVector(pyimport("sys")."path"), "")
-    # fault_search = pyimport("fault_search")
-    # fault_edges_vertex = fault_search.main("CSC_G_vertex.txt", 3, 4, fault_list[1], 100)
-    # fault_edges_plaquette = fault_search.main("CSC_G_plaquette.txt", 3, 4, fault_list[2], 100)
-    # ghost_nodes::Vector{Int64} = [0]
-    # for i = 1:d
-    #     append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
-    # end
-    # append!(ghost_nodes, range(d*d*(d+1)+1, d*d*(d+1)+d*(d-1), step=1))
-    # display(fault_edges_plaquette)
-    # display(fault_edges_vertex)
+    # Find the most likely faults by using the shortest path and minimum weight matching algorithms
+    pushfirst!(PyVector(pyimport("sys")."path"), "")
+    fault_search = pyimport("fault_search")
+    fault_edges_vertex = fault_search.main("CSC_G_vertex.txt", 3, 4, fault_list[1], 100)
+    fault_edges_plaquette = fault_search.main("CSC_G_plaquette.txt", 3, 4, fault_list[2], 100)
+    ghost_nodes::Vector{Int64} = [0]
+    for i = 1:d
+        append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
+    end
+    append!(ghost_nodes, range(d*d*(d+1)+1, d*d*(d+1)+d*(d-1), step=1))
 
     # # # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
-    # if isempty(fault_edges_plaquette) == false
-    #     display(find_x_error_qubits(d, connections, z_ancilla_list, fault_edges_plaquette, ghost_nodes))
-    # end
+    if isempty(fault_edges_plaquette) == false
+        error_x::Vector{Int64} = find_x_error_qubits(d, connections, z_ancilla_list, fault_edges_plaquette, ghost_nodes)
+    end
 
-    # if isempty(fault_edges_vertex) == false
-    #     display(find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
-    # end
+    if isempty(fault_edges_vertex) == false
+        error_z::Vector{Int64} = find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes)
+    end
 
-    # # # apply_recovery(QS, errors[1], errors[2])
+    # apply_recovery(QS, error_x, error_z)
 
     # # # Find the logical state of the surface code after recovery and compare with the initial state
-    # # final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    display(final_code_state)
 
     # # Determine the probability of a logical error occurring given the error probability
 
