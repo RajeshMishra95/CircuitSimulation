@@ -1258,8 +1258,8 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     end
 
     for i in range(1+d*(d-2), length = d)
-        add_edge!(G_x, i, d*(d-1) + i)
-        add_edge!(G_z, i, d*(d-1) + i)
+        add_edge!(G_x, i, i + 2*d)
+        add_edge!(G_z, i, i + 2*d)
     end
 
     for i in range(1+d*(d+1), length = d)
@@ -1268,19 +1268,19 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
     end
 
     for i in range(1+d*(d-2)+d*(d+1), length = d)
-        add_edge!(G_x, i, d*(d-1) + i)
-        add_edge!(G_z, i, d*(d-1) + i)
+        add_edge!(G_x, i, i + 2*d)
+        add_edge!(G_z, i, i + 2*d)
     end
 
     CSC_G_x = findnz(adjacency_matrix(G_x))
     CSC_G_z = findnz(adjacency_matrix(G_z))
-    open("CSC_G_vertex1.txt", "w") do f
+    open("CSC_G_vertex5.txt", "w") do f
         for i = 1:length(CSC_G_x[1])
             println(f, (CSC_G_x[1][i], CSC_G_x[2][i]))
         end
     end
 
-    open("CSC_G_plaquette1.txt", "w") do f
+    open("CSC_G_plaquette5.txt", "w") do f
         for i = 1:length(CSC_G_z[1])
             println(f, (CSC_G_z[1][i], CSC_G_z[2][i]))
         end
@@ -1578,8 +1578,8 @@ function main(d::Int64, noise::Float64)
     # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
     fault_search = pyimport("fault_search")
-    fault_edges_vertex = fault_search.main("CSC_G_vertex.txt", 3, 4, fault_list[1], 100)
-    fault_edges_plaquette = fault_search.main("CSC_G_plaquette.txt", 3, 4, fault_list[2], 100)
+    fault_edges_vertex = fault_search.main("CSC_G_vertex5.txt", d, d+1, fault_list[1], 100)
+    fault_edges_plaquette = fault_search.main("CSC_G_plaquette5.txt", d, d+1, fault_list[2], 100)
     ghost_nodes::Vector{Int64} = [0]
     for i = 1:d
         append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
@@ -1618,15 +1618,20 @@ function run()
     physical_error_list = range(0.001, 0.011, length = 11)
     for j in physical_error_list
         count::Int64 = 0
-        for i = 1:10000
-            if main(3, j) == 1
+        for i = 1:1000
+            if main(5, j) == 1
                 count += 1
             end
         end
-        append!(logical_error_list, count/10000)
+        append!(logical_error_list, count/1000)
         display(j)
     end
     display(logical_error_list)
+    open("distance_5.txt", "w") do f
+        for i = 1:length(logical_error_list)
+            println(f, logical_error_list[i])
+        end
+    end
     clf()
     plot(physical_error_list, logical_error_list)
     gcf()
