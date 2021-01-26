@@ -284,9 +284,9 @@ end
 function noisy_prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
     for i in x_ancilla_list
         apply_h!(QS,i)
-        # display("prep")
+        display("prep")
         idx = samplingDistribution(cdf)
-        # display(idx)
+        display(idx)
         gateOperation!(QS, idx, i)
     end
 end
@@ -303,11 +303,11 @@ function noisy_north_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::
     for j in z_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j-1, j)
-            # display("northz")
+            display("northz")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
-            # display(idx1)
-            # display(idx2)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j-1)
         end
@@ -326,11 +326,11 @@ function noisy_north_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::
     for j in x_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j, j-1)
-            # display("northx")
+            display("northx")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
-            # display(idx1)
-            # display(idx2)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j-1)
         end
@@ -349,11 +349,11 @@ function noisy_west_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancil
     for j in z_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j-(2*d-1), j)
-            # display("westz")
+            display("westz")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
-            # display(idx1)
-            # display(idx2)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j-(2*d-1))
         end
@@ -372,11 +372,11 @@ function noisy_west_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancil
     for j in x_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j, j-(2*d-1))
-            # display("westx")
+            display("westx")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
-            # display(idx1)
-            # display(idx2)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j-(2*d-1))
         end
@@ -395,11 +395,11 @@ function noisy_east_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancil
     for j in z_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j+(2*d-1), j)
-            # display("eastz")
+            display("eastz")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
-            # display(idx1)
-            # display(idx2)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j+(2*d-1))
         end
@@ -418,11 +418,11 @@ function noisy_east_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancil
     for j in x_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j, j+(2*d-1))
-            # display("eastx")
+            display("eastx")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
-            # display(idx1)
-            # display(idx2)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j+(2*d-1))
         end
@@ -441,11 +441,11 @@ function noisy_south_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::
     for j in z_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j+1, j)
-            # display("southz")
+            display("southz")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
-            # display(idx1)
-            # display(idx2)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j+1)
         end
@@ -464,11 +464,11 @@ function noisy_south_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::
     for j in x_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j, j+1)
-            # display("southx")
+            display("southx")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
-            # display(idx1)
-            # display(idx2)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j+1)
         end
@@ -1308,13 +1308,13 @@ function generate_fault_graph(QS::QuantumState, d::Int64, graph::Dict,
 
     CSC_G_x = findnz(adjacency_matrix(G_x))
     CSC_G_z = findnz(adjacency_matrix(G_z))
-    open("G_vertex7.txt", "w") do f
+    open("CSC_G_vertex1.txt", "w") do f
         for i = 1:length(CSC_G_x[1])
             println(f, (CSC_G_x[1][i], CSC_G_x[2][i]))
         end
     end
 
-    open("G_plaquette7.txt", "w") do f
+    open("CSC_G_plaquette1.txt", "w") do f
         for i = 1:length(CSC_G_z[1])
             println(f, (CSC_G_z[1][i], CSC_G_z[2][i]))
         end
@@ -1615,11 +1615,762 @@ function main(d::Int64, noise::Float64)
     quasi_prob::Vector{Float64} = [1-noise, noise/3, noise/3, noise/3]
     cdf::Array{Float64,1} = probDistribution(quasi_prob)
 
-    
+    """
+    Checking of each possible error and the final logical state.
+    """
+    # initialize 
+
+    which_ancilla::Vector{Int64} = [0,1]
+    num_ancillas::UnitRange{Int64} = range(1, length = d*(d-1))
+    x_depth::Vector{Int64} = [1,2,3,4,5,6]
+    z_depth::Vector{Int64} = [2,3,4,5]
+    error::Vector{Int64} = [1,2,3,4] # 1 -> I, 2 -> X, 3 -> Y, 4 -> Z 
+    graph = connections
+
+    # noisy measurement circuit (enumerate through all possible single errors)
+    # for i in which_ancilla
+    for i = 0:0
+        if i == 0
+            # error in one of the x_ancilla circuits
+            for j in num_ancillas
+                # error during one of the 6 timesteps
+                # for k in x_depth
+                for k = 1:1
+                    if k == 1
+                        # noisy hadamard gate
+                        for l in error
+                            qs = deepcopy(QS)
+                            measurement_cycle = deepcopy(measurement_values)
+                            # preparation measurement circuit
+                            measurement_circuit!(qs, d, connections, x_ancilla_list, z_ancilla_list)
+
+                            # ancilla measurement for preparation
+                            for i in x_ancilla_list
+                                measurement_cycle[1,i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle[1,j] = measure!(qs,j)
+                            end
+
+                            ancilla_reset(qs, measurement_cycle[1,:])
+                            
+                            prep_x_ancillas!(qs, x_ancilla_list)
+                            apply_noise!(qs, l, x_ancilla_list[j])
+                            # carry out the measurement circuits
+                            north_z_ancillas!(qs, graph, z_ancilla_list)
+                            north_x_ancillas!(qs, graph, x_ancilla_list)
+                            west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                            west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                            east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                            east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                            south_z_ancillas!(qs, graph, z_ancilla_list)
+                            south_x_ancillas!(qs, graph, x_ancilla_list) 
+                            for m in x_ancilla_list
+                                apply_h!(qs,m)
+                            end
+                            # ancilla measurement for cycle1
+                            for i in x_ancilla_list
+                                measurement_cycle[2,i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle[2,j] = measure!(qs,j)
+                            end
+
+                            ancilla_reset(qs, measurement_cycle[2,:])
+
+                            # ideal measurement circuit
+                            measurement_circuit!(qs, d, connections, x_ancilla_list, z_ancilla_list)
+
+                            # ancilla measurement for cycle2
+                            for i in x_ancilla_list
+                                measurement_cycle[3,i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle[3,j] = measure!(qs,j)
+                            end
+
+                            ancilla_reset(qs, measurement_cycle[3,:])
+
+                            # ideal measurement circuit
+                            measurement_circuit!(qs, d, connections, x_ancilla_list, z_ancilla_list)
+                            
+                            for i in x_ancilla_list
+                                measurement_cycle[4,i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle[4,j] = measure!(qs,j)
+                            end
+
+                            ancilla_reset(qs, measurement_cycle[3,:])
+
+                            # ideal measurement circuit
+                            measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                            # ancilla measurement for cycle2
+                            for i in x_ancilla_list
+                                measurement_cycle[4,i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle[4,j] = measure!(qs,j)
+                            end
+                            
+                            ancilla_reset(qs, measurement_cycle[4,:])
+
+                            fault_list = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
+                            display("Fault")
+                            display(fault_list)
+
+                            # Find the most likely faults by using the shortest path and minimum weight matching algorithms
+                            pushfirst!(PyVector(pyimport("sys")."path"), "")
+                            fault_search = pyimport("fault_search")
+                            fault_edges_vertex = fault_search.noisy_recovery("CSC_G_vertex.txt", d, d+1, fault_list[1], 100)
+                            fault_edges_plaquette = fault_search.noisy_recovery("CSC_G_plaquette.txt", d, d+1, fault_list[2], 100)
+                            
+                            display("Matching")
+                            display(fault_edges_plaquette)
+                            display(fault_edges_vertex)
+                            display(measurement_cycle)
+                            error_x::Vector{Int64} = []
+                            error_z::Vector{Int64} = []
+                            # # # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
+                            if isempty(fault_edges_plaquette) == false
+                                append!(error_x, find_x_error_qubits(d, connections, z_ancilla_list, fault_edges_plaquette, ghost_nodes))
+                            end
+
+                            if isempty(fault_edges_vertex) == false
+                                append!(error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
+                            end
+
+                            display("Error")
+                            display(error_x)
+                            display(error_z)
+                            apply_recovery(qs, error_x, error_z)
+                            measurement_circuit!(qs, d, connections, x_ancilla_list, z_ancilla_list) 
+                            for i in x_ancilla_list
+                                final_measurement_values[2,i] = measure!(qs, i)
+                            end
+
+                            for i in z_ancilla_list
+                                final_measurement_values[2,i] = measure!(qs, i)
+                            end
+                            
+                            for i = 1:total_qubits
+                                final_measurement_values[1,i] = measurement_cycle[1,i]
+                                last_measurement[1,i] = measurement_cycle[1,i]
+                            end
+
+                            display(final_measurement_values)
+                            # Generate faults from the measurement value of initial and final cycle. Tuple containing x and z ancilla
+                            final_fault_list = generate_fault_nodes(d, final_measurement_values, x_ancilla_list, z_ancilla_list)
+                            display("Fault")
+                            display(final_fault_list)
+
+                            # Find the most likely faults by using the shortest path and minimum weight matching algorithms
+                            pushfirst!(PyVector(pyimport("sys")."path"), "")
+                            fault_search = pyimport("fault_search")
+                            fault_edges_vertex = fault_search.ideal_recovery("CSC_G_vertex.txt", d, final_fault_list[1], 100)
+                            fault_edges_plaquette = fault_search.ideal_recovery("CSC_G_plaquette.txt", d, final_fault_list[2], 100)
+                            display("Matching")
+                            display(fault_edges_plaquette)
+                            display(fault_edges_vertex)
+
+                            final_error_x::Vector{Int64} = []
+                            final_error_z::Vector{Int64} = []
+                            # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
+                            if isempty(fault_edges_plaquette) == false
+                                append!(final_error_x, find_x_error_qubits(d, connections, z_ancilla_list, fault_edges_plaquette, ghost_nodes))
+                            end
+
+                            if isempty(fault_edges_vertex) == false
+                                append!(final_error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
+                            end
+
+                            display("Error")
+                            display(final_error_x)
+                            display(final_error_z)
+                            apply_recovery(qs, final_error_x, final_error_z)
+                            ancilla_reset(qs, final_measurement_values[2,:])
+                            measurement_circuit!(qs, d, connections, x_ancilla_list, z_ancilla_list) 
+                            for i in x_ancilla_list
+                                last_measurement[2,i] = measure!(qs, i)
+                            end
+
+                            for i in z_ancilla_list
+                                last_measurement[2,i] = measure!(qs, i)
+                            end
+                            display(last_measurement)
+                            final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(qs), d), d)
+                            display(final_code_state)
+                            if final_code_state == 1
+                                return "Logical Error"
+                            end
+                        end
+                    elseif k == 2
+                        for l in error
+                            for m = 1:1
+                                qs = deepcopy(QS)
+                                measurement_cycle = deepcopy(measurement_values)
+                                # preparation measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for preparation
+                                for i in x_ancilla_list
+                                    measurement_cycle[1,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[1,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
+                                prep_x_ancillas!(qs, x_ancilla_list)
+                                # carry out the measurement circuits
+                                north_z_ancillas!(qs, graph, z_ancilla_list)
+                                north_x_ancillas!(qs, graph, x_ancilla_list)
+                                if x_ancilla_list[j] - 1 in graph[x_ancilla_list[j]]
+                                    apply_noise!(qs, l, x_ancilla_list[j])
+                                    apply_noise!(qs, m, x_ancilla_list[j] - 1)
+                                end
+                                west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                south_z_ancillas!(qs, graph, z_ancilla_list)
+                                south_x_ancillas!(qs, graph, x_ancilla_list) 
+                                for m in x_ancilla_list
+                                    apply_h!(qs,m)
+                                end
+                                # ancilla measurement for cycle1
+                                for i in x_ancilla_list
+                                    measurement_cycle[2,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[2,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
+
+                                # ideal measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for cycle2
+                                for i in x_ancilla_list
+                                    measurement_cycle[3,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[3,j] = measure!(qs,j)
+                                end
+                            end
+                        end
+                    elseif k == 3 
+                        for l in error
+                            for m = 1:1
+                                qs = deepcopy(QS)
+                                measurement_cycle = deepcopy(measurement_values)
+                                # preparation measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for preparation
+                                for i in x_ancilla_list
+                                    measurement_cycle[1,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[1,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
+                                prep_x_ancillas!(qs, x_ancilla_list)
+                                # carry out the measurement circuits
+                                north_z_ancillas!(qs, graph, z_ancilla_list)
+                                north_x_ancillas!(qs, graph, x_ancilla_list)
+                                west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                if x_ancilla_list[j] - (2*d - 1) in graph[x_ancilla_list[j]]
+                                    apply_noise!(qs, l, x_ancilla_list[j])
+                                    apply_noise!(qs, m, x_ancilla_list[j] - (2*d - 1))
+                                end
+                                east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                south_z_ancillas!(qs, graph, z_ancilla_list)
+                                south_x_ancillas!(qs, graph, x_ancilla_list) 
+                                for m in x_ancilla_list
+                                    apply_h!(qs,m)
+                                end
+                                # ancilla measurement for cycle1
+                                for i in x_ancilla_list
+                                    measurement_cycle[2,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[2,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
+
+                                # ideal measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for cycle2
+                                for i in x_ancilla_list
+                                    measurement_cycle[3,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[3,j] = measure!(qs,j)
+                                end
+                                ancilla_reset(qs, measurement_cycle[3,:])
+                                
+                            end
+                        end
+                    elseif k == 4
+                        for l in error
+                            for m = 1:1
+                                qs = deepcopy(QS)
+                                measurement_cycle = deepcopy(measurement_values)
+                                # preparation measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for preparation
+                                for i in x_ancilla_list
+                                    measurement_cycle[1,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[1,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
+                                prep_x_ancillas!(qs, x_ancilla_list)
+                                # carry out the measurement circuits
+                                north_z_ancillas!(qs, graph, z_ancilla_list)
+                                north_x_ancillas!(qs, graph, x_ancilla_list)
+                                west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                if x_ancilla_list[j] + (2*d - 1) in graph[x_ancilla_list[j]]
+                                    apply_noise!(qs, l, x_ancilla_list[j])
+                                    apply_noise!(qs, m, x_ancilla_list[j] + (2*d - 1))
+                                end
+                                south_z_ancillas!(qs, graph, z_ancilla_list)
+                                south_x_ancillas!(qs, graph, x_ancilla_list) 
+                                for m in x_ancilla_list
+                                    apply_h!(qs,m)
+                                end
+                                # ancilla measurement for cycle1
+                                for i in x_ancilla_list
+                                    measurement_cycle[2,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[2,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
+
+                                # ideal measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for cycle2
+                                for i in x_ancilla_list
+                                    measurement_cycle[3,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[3,j] = measure!(qs,j)
+                                end
+                            end
+                        end
+                    elseif k == 5
+                        for l = 1:1
+                            for m in error
+                                qs = deepcopy(QS)
+                                measurement_cycle = deepcopy(measurement_values)
+                                # preparation measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for preparation
+                                for i in x_ancilla_list
+                                    measurement_cycle[1,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[1,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
+                                prep_x_ancillas!(qs, x_ancilla_list)
+                                # carry out the measurement circuits
+                                north_z_ancillas!(qs, graph, z_ancilla_list)
+                                north_x_ancillas!(qs, graph, x_ancilla_list)
+                                west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                south_z_ancillas!(qs, graph, z_ancilla_list)
+                                south_x_ancillas!(qs, graph, x_ancilla_list)
+                                if x_ancilla_list[j] + 1 in graph[x_ancilla_list[j]]
+                                    apply_noise!(qs, l, x_ancilla_list[j])
+                                    apply_noise!(qs, m, x_ancilla_list[j] + 1)
+                                end 
+                                for m in x_ancilla_list
+                                    apply_h!(qs,m)
+                                end
+                                # ancilla measurement for cycle1
+                                for i in x_ancilla_list
+                                    measurement_cycle[2,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[2,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
+
+                                # ideal measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for cycle2
+                                for i in x_ancilla_list
+                                    measurement_cycle[3,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[3,j] = measure!(qs,j)
+                                end
+                            end
+                        end
+                    else
+                        # noisy hadamard gate
+                        for l in error
+                            qs = deepcopy(QS)
+                            measurement_cycle = deepcopy(measurement_values)
+                            # preparation measurement circuit
+                            measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                            # ancilla measurement for preparation
+                            for i in x_ancilla_list
+                                measurement_cycle[1,i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle[1,j] = measure!(qs,j)
+                            end
+
+                            ancilla_reset(qs, measurement_cycle[1,:])
+
+                            prep_x_ancillas!(qs, x_ancilla_list)
+                            # carry out the measurement circuits
+                            north_z_ancillas!(qs, graph, z_ancilla_list)
+                            north_x_ancillas!(qs, graph, x_ancilla_list)
+                            west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                            west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                            east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                            east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                            south_z_ancillas!(qs, graph, z_ancilla_list)
+                            south_x_ancillas!(qs, graph, x_ancilla_list) 
+                            for m in x_ancilla_list
+                                apply_h!(qs,m)
+                            end
+                            apply_noise!(qs, l, x_ancilla_list[j])
+                            # ancilla measurement for cycle1
+                            for i in x_ancilla_list
+                                measurement_cycle[2,i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle[2,j] = measure!(qs,j)
+                            end
+
+                            ancilla_reset(qs, measurement_cycle[2,:])
+
+                            # ideal measurement circuit
+                            measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                            # ancilla measurement for cycle2
+                            for i in x_ancilla_list
+                                measurement_cycle[3,i] = measure!(qs,i)
+                            end
+
+                            for j in z_ancilla_list
+                                measurement_cycle[3,j] = measure!(qs,j)
+                            end
+                        end
+                    end
+                end
+            end
+        else    
+            # error in one of the z_ancilla circuits
+            for j in num_ancillas
+                # error during one of the 6 timesteps
+                for k in z_depth
+                    if k == 2
+                        for l in error
+                            for m in error
+                                qs = deepcopy(QS)
+                                measurement_cycle = deepcopy(measurement_values)
+                                # preparation measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for preparation
+                                for i in x_ancilla_list
+                                    measurement_cycle[1,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[1,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
+                                prep_x_ancillas!(qs, x_ancilla_list)
+                                # carry out the measurement circuits
+                                north_z_ancillas!(qs, graph, z_ancilla_list)
+                                north_x_ancillas!(qs, graph, x_ancilla_list)
+                                if z_ancilla_list[j] - 1 in graph[z_ancilla_list[j]]
+                                    apply_noise!(qs, l, z_ancilla_list[j])
+                                    apply_noise!(qs, m, z_ancilla_list[j] - 1)
+                                end
+                                west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                south_z_ancillas!(qs, graph, z_ancilla_list)
+                                south_x_ancillas!(qs, graph, x_ancilla_list) 
+                                for m in x_ancilla_list
+                                    apply_h!(qs,m)
+                                end
+                                # ancilla measurement for cycle1
+                                for i in x_ancilla_list
+                                    measurement_cycle[2,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[2,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
+
+                                # ideal measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for cycle2
+                                for i in x_ancilla_list
+                                    measurement_cycle[3,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[3,j] = measure!(qs,j)
+                                end
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
+                            end
+                        end
+                    elseif k == 3 
+                        for l in error
+                            for m in error
+                                qs = deepcopy(QS)
+                                measurement_cycle = deepcopy(measurement_values)
+                                # preparation measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for preparation
+                                for i in x_ancilla_list
+                                    measurement_cycle[1,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[1,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
+                                prep_x_ancillas!(qs, x_ancilla_list)
+                                # carry out the measurement circuits
+                                north_z_ancillas!(qs, graph, z_ancilla_list)
+                                north_x_ancillas!(qs, graph, x_ancilla_list)
+                                west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                if z_ancilla_list[j] - (2*d - 1) in graph[z_ancilla_list[j]]
+                                    apply_noise!(qs, l, z_ancilla_list[j])
+                                    apply_noise!(qs, m, z_ancilla_list[j] - (2*d - 1))
+                                end
+                                east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                south_z_ancillas!(qs, graph, z_ancilla_list)
+                                south_x_ancillas!(qs, graph, x_ancilla_list) 
+                                for m in x_ancilla_list
+                                    apply_h!(qs,m)
+                                end
+                                # ancilla measurement for cycle1
+                                for i in x_ancilla_list
+                                    measurement_cycle[2,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[2,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
+
+                                # ideal measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for cycle2
+                                for i in x_ancilla_list
+                                    measurement_cycle[3,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[3,j] = measure!(qs,j)
+                                end
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
+                            end
+                        end
+                    elseif k == 4
+                        for l in error
+                            for m in error
+                                qs = deepcopy(QS)
+                                measurement_cycle = deepcopy(measurement_values)
+                                # preparation measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for preparation
+                                for i in x_ancilla_list
+                                    measurement_cycle[1,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[1,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
+                                prep_x_ancillas!(qs, x_ancilla_list)
+                                # carry out the measurement circuits
+                                north_z_ancillas!(qs, graph, z_ancilla_list)
+                                north_x_ancillas!(qs, graph, x_ancilla_list)
+                                west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                if z_ancilla_list[j] + (2*d - 1) in graph[z_ancilla_list[j]]
+                                    apply_noise!(qs, l, z_ancilla_list[j])
+                                    apply_noise!(qs, m, z_ancilla_list[j] + (2*d - 1))
+                                end
+                                south_z_ancillas!(qs, graph, z_ancilla_list)
+                                south_x_ancillas!(qs, graph, x_ancilla_list) 
+                                for m in x_ancilla_list
+                                    apply_h!(qs,m)
+                                end
+                                # ancilla measurement for cycle1
+                                for i in x_ancilla_list
+                                    measurement_cycle[2,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[2,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
+
+                                # ideal measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for cycle2
+                                for i in x_ancilla_list
+                                    measurement_cycle[3,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[3,j] = measure!(qs,j)
+                                end
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
+                            end
+                        end
+                    elseif k == 5
+                        for l in error
+                            for m in error
+                                qs = deepcopy(QS)
+                                measurement_cycle = deepcopy(measurement_values)
+                                # preparation measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for preparation
+                                for i in x_ancilla_list
+                                    measurement_cycle[1,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[1,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[1,:])
+
+                                prep_x_ancillas!(qs, x_ancilla_list)
+                                # carry out the measurement circuits
+                                north_z_ancillas!(qs, graph, z_ancilla_list)
+                                north_x_ancillas!(qs, graph, x_ancilla_list)
+                                west_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                west_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                east_z_ancillas!(qs, d, graph, z_ancilla_list)
+                                east_x_ancillas!(qs, d, graph, x_ancilla_list)
+                                south_z_ancillas!(qs, graph, z_ancilla_list)
+                                south_x_ancillas!(qs, graph, x_ancilla_list)
+                                if z_ancilla_list[j] + 1 in graph[z_ancilla_list[j]]
+                                    apply_noise!(qs, l, z_ancilla_list[j])
+                                    apply_noise!(qs, m, z_ancilla_list[j] + 1)
+                                end 
+                                for m in x_ancilla_list
+                                    apply_h!(qs,m)
+                                end
+                                # ancilla measurement for cycle1
+                                for i in x_ancilla_list
+                                    measurement_cycle[2,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[2,j] = measure!(qs,j)
+                                end
+
+                                ancilla_reset(qs, measurement_cycle[2,:])
+
+                                # ideal measurement circuit
+                                measurement_circuit!(qs, d, graph, x_ancilla_list, z_ancilla_list)
+
+                                # ancilla measurement for cycle2
+                                for i in x_ancilla_list
+                                    measurement_cycle[3,i] = measure!(qs,i)
+                                end
+
+                                for j in z_ancilla_list
+                                    measurement_cycle[3,j] = measure!(qs,j)
+                                end
+                                edges = generate_fault_nodes(d, measurement_cycle, x_ancilla_list, z_ancilla_list)
+                            end
+                        end 
+                    end
+                end
+            end
+        end
+    end
+
+    #=
+
     # Collect the measurement values for d cycles
     for j = 1:d
-        noisy_measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list, cdf)
-        # measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
+        measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list)
         for i in x_ancilla_list
             measurement_values[j+1,i] = measure!(QS, i)
         end
@@ -1635,24 +2386,24 @@ function main(d::Int64, noise::Float64)
     # generate_fault_graph(QS, d, connections, x_ancilla_list, z_ancilla_list, 
     # zeros(Int64, (d, total_qubits)))
 
-    # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
+    # # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
     fault_list = generate_fault_nodes(d, measurement_values, x_ancilla_list, z_ancilla_list)
-    # display("Fault")
-    # display(fault_list)
+    display("Fault")
+    display(fault_list)
 
     # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
     fault_search = pyimport("fault_search")
-    fault_edges_vertex = fault_search.noisy_recovery("G_vertex7.txt", d, d+1, fault_list[1], 100)
-    fault_edges_plaquette = fault_search.noisy_recovery("G_plaquette7.txt", d, d+1, fault_list[2], 100)
+    fault_edges_vertex = fault_search.noisy_recovery("CSC_G_vertex.txt", d, d+1, fault_list[1], 100)
+    fault_edges_plaquette = fault_search.noisy_recovery("CSC_G_plaquette.txt", d, d+1, fault_list[2], 100)
     
-    # display("Matching")
-    # display(fault_edges_plaquette)
-    # display(fault_edges_vertex)
+    display("Matching")
+    display(fault_edges_plaquette)
+    display(fault_edges_vertex)
 
     error_x::Vector{Int64} = []
     error_z::Vector{Int64} = []
-    # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
+    # # # Use the fault edges to find the qubits where the errors have occurred and apply recovery 
     if isempty(fault_edges_plaquette) == false
         append!(error_x, find_x_error_qubits(d, connections, z_ancilla_list, fault_edges_plaquette, ghost_nodes))
     end
@@ -1661,9 +2412,9 @@ function main(d::Int64, noise::Float64)
         append!(error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
     end
 
-    # display("Error")
-    # display(error_x)
-    # display(error_z)
+    display("Error")
+    display(error_x)
+    display(error_z)
     apply_recovery(QS, error_x, error_z)
     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
     for i in x_ancilla_list
@@ -1674,26 +2425,26 @@ function main(d::Int64, noise::Float64)
         final_measurement_values[2,i] = measure!(QS, i)
     end
     
-    # display(measurement_values)
+    display(measurement_values)
     for i = 1:total_qubits
         final_measurement_values[1,i] = measurement_values[1,i]
         last_measurement[1,i] = measurement_values[1,i]
     end
 
-    # display(final_measurement_values)
+    display(final_measurement_values)
     # Generate faults from the measurement value of initial and final cycle. Tuple containing x and z ancilla
     final_fault_list = generate_fault_nodes(d, final_measurement_values, x_ancilla_list, z_ancilla_list)
-    # display("Fault")
-    # display(final_fault_list)
+    display("Fault")
+    display(final_fault_list)
 
     # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
     fault_search = pyimport("fault_search")
-    fault_edges_vertex = fault_search.ideal_recovery("G_vertex7.txt", d, final_fault_list[1], 100)
-    fault_edges_plaquette = fault_search.ideal_recovery("G_plaquette7.txt", d, final_fault_list[2], 100)
-    # display("Matching")
-    # display(fault_edges_plaquette)
-    # display(fault_edges_vertex)
+    fault_edges_vertex = fault_search.ideal_recovery("CSC_G_vertex.txt", d, final_fault_list[1], 100)
+    fault_edges_plaquette = fault_search.ideal_recovery("CSC_G_plaquette.txt", d, final_fault_list[2], 100)
+    display("Matching")
+    display(fault_edges_plaquette)
+    display(fault_edges_vertex)
 
     final_error_x::Vector{Int64} = []
     final_error_z::Vector{Int64} = []
@@ -1706,9 +2457,9 @@ function main(d::Int64, noise::Float64)
         append!(final_error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
     end
 
-    # display("Error")
-    # display(final_error_x)
-    # display(final_error_z)
+    display("Error")
+    display(final_error_x)
+    display(final_error_z)
     apply_recovery(QS, final_error_x, final_error_z)
     ancilla_reset(QS, final_measurement_values[2,:])
     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
@@ -1719,38 +2470,43 @@ function main(d::Int64, noise::Float64)
     for i in z_ancilla_list
         last_measurement[2,i] = measure!(QS, i)
     end
-    # display(last_measurement)
+    display(last_measurement)
     final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
-    # display(final_code_state)
+    display(final_code_state)
     return final_code_state
+    =#
 end
 
 function run()
     # main(3)
     logical_error_list::Vector{Float64} = []
-    physical_error_list = range(0.01, 0.002, length = 9)
+    physical_error_list = range(0.0001, 0.001, length = 11)
     for j in physical_error_list
         count::Int64 = 0
-        trials::Int64 = 0
-        threshold = 10000*j
-        while count < threshold
-            if main(7, j) == 1
+        for i = 1:10000
+            if main(3, j) == 1
                 count += 1
             end
-            trials += 1
         end
+        append!(logical_error_list, count/10000)
         display(j)
-        display(count/trials)
+        display(count/10000)
     end
+    clf()
+    plot(physical_error_list, logical_error_list)
+    gcf()
 end
 
 function check()
     count::Int64 = 0
-    for i = 1:10000
+    for i = 1:100
         # display("run")
-        if main(7, 0.001) == 1
+        if main(3, 0.005) == 1
             count += 1
         end
     end
     display(count)
 end
+
+
+
