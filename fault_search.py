@@ -33,7 +33,7 @@ def generate_shortest_path_graph(d, cycles, volume_lattice, fault_nodes):
     their corresponding spatial and temporal ghost nodes. Here, ghost can be shared by 
     multiple real nodes.
     """
-    Graph_volume_lattice = build_lattice_graph(d, cycles, volume_lattice)
+    Graph_volume_lattice = volume_lattice
     Graph_fault = nx.Graph()
     for i in fault_nodes:
         Graph_fault.add_node(i)
@@ -83,7 +83,7 @@ def generate_shortest_path_graph_unique(d, cycles, volume_lattice, fault_nodes):
     their corresponding spatial and temporal ghost nodes. Here, ghost nodes are not 
     shared by multiple real nodes.
     """
-    Graph_volume_lattice = build_lattice_graph(d, cycles, volume_lattice)
+    Graph_volume_lattice = volume_lattice
     Graph_fault = nx.Graph()
     for i in fault_nodes:
         Graph_fault.add_node(str(i), value=i)
@@ -146,7 +146,8 @@ def noisy_recovery(file_name, distance, cycles, fault_nodes, max_value_edge):
         initial_lattice.append(eval(x))
     f.close()
     final_lattice = error_lattice(distance, cycles, initial_lattice)
-    G1 = generate_shortest_path_graph_unique(distance, cycles, final_lattice, fault_nodes)
+    Graph_volume_lattice = build_lattice_graph(distance, cycles, final_lattice)
+    G1 = generate_shortest_path_graph_unique(distance, cycles, Graph_volume_lattice, fault_nodes)
     # G2 = generate_shortest_path_graph(distance, cycles, final_lattice, fault_nodes)
     update_weight(G1,max_value_edge)
     # update_weight(G2,max_value_edge)

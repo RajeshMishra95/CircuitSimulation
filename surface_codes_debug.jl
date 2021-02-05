@@ -1,12 +1,14 @@
 using LinearAlgebra
 using DelimitedFiles
 using Statistics
-using SparseArrays
 using LightGraphs
+using SparseArrays
+using CSV
+using DataFrames
 using IterTools
 using PyCall
 using Conda
-using FLoops
+using PyPlot
 
 mutable struct QuantumState
     tableau::Matrix
@@ -282,7 +284,9 @@ end
 function noisy_prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64}, cdf::Array{Float64,1})
     for i in x_ancilla_list
         apply_h!(QS,i)
+        display("prep")
         idx = samplingDistribution(cdf)
+        display(idx)
         gateOperation!(QS, idx, i)
     end
 end
@@ -299,8 +303,11 @@ function noisy_north_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::
     for j in z_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j-1, j)
+            display("northz")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j-1)
         end
@@ -319,8 +326,11 @@ function noisy_north_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::
     for j in x_ancilla_list
         if j-1 in graph[j]
             apply_cnot!(QS, j, j-1)
+            display("northx")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j-1)
         end
@@ -339,8 +349,11 @@ function noisy_west_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancil
     for j in z_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j-(2*d-1), j)
+            display("westz")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j-(2*d-1))
         end
@@ -359,8 +372,11 @@ function noisy_west_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancil
     for j in x_ancilla_list
         if j-(2*d-1) in graph[j]
             apply_cnot!(QS, j, j-(2*d-1))
+            display("westx")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j-(2*d-1))
         end
@@ -379,8 +395,11 @@ function noisy_east_z_ancillas!(QS::QuantumState, d::Int64, graph::Dict, z_ancil
     for j in z_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j+(2*d-1), j)
+            display("eastz")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j+(2*d-1))
         end
@@ -399,8 +418,11 @@ function noisy_east_x_ancillas!(QS::QuantumState, d::Int64, graph::Dict, x_ancil
     for j in x_ancilla_list
         if j+(2*d-1) in graph[j]
             apply_cnot!(QS, j, j+(2*d-1))
+            display("eastx")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j+(2*d-1))
         end
@@ -419,8 +441,11 @@ function noisy_south_z_ancillas!(QS::QuantumState, graph::Dict, z_ancilla_list::
     for j in z_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j+1, j)
+            display("southz")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j+1)
         end
@@ -439,8 +464,11 @@ function noisy_south_x_ancillas!(QS::QuantumState, graph::Dict, x_ancilla_list::
     for j in x_ancilla_list
         if j+1 in graph[j]
             apply_cnot!(QS, j, j+1)
+            display("southx")
             idx1 = samplingDistribution(cdf)
             idx2 = samplingDistribution(cdf)
+            display(idx1)
+            display(idx2)
             gateOperation!(QS, idx1, j)
             gateOperation!(QS, idx2, j+1)
         end
@@ -594,6 +622,10 @@ function distill_stabilizers(QS::QuantumState, d::Int64)
         end
     end
     final_stabilizers::Array{Int64,2} = transpose(reshape(stabilizers, (2*total_qubits+1, Int((total_qubits+1)/2))))
+    I, J, V = findnz(sparse(final_stabilizers))
+    df = DataFrame([:I => I, :J => J])
+    CSV.write("spmatrix1.csv", df)
+
     return final_stabilizers
 end
 
@@ -815,6 +847,7 @@ function find_z_error_qubits(d::Int64, surface_code_lattice::Dict, x_ancilla_lis
     end
     return z_error_qubits
 end
+
 function apply_recovery(QS::QuantumState, x_error_qubits::Vector{Int64}, z_error_qubits::Vector{Int64})
     for i in x_error_qubits
         apply_x!(QS, i)
@@ -858,6 +891,8 @@ function main(d::Int64, noise::Float64)
 
     # Find the logical state of the surface code
     initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    display("Initial logical state")
+    display(initial_code_state)
 
     # Quasi-probability distribution -> cumulative density function
     quasi_prob::Vector{Float64} = [1-noise, noise/3, noise/3, noise/3]
@@ -881,12 +916,18 @@ function main(d::Int64, noise::Float64)
 
     # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
     fault_list = generate_fault_nodes(d, measurement_values, x_ancilla_list, z_ancilla_list)
+    display("Fault")
+    display(fault_list)
 
     # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
     fault_search = pyimport("fault_search")
     fault_edges_vertex = fault_search.noisy_recovery("G_vertex"*string(d)*".txt", d, d+1, fault_list[1], 100)
     fault_edges_plaquette = fault_search.noisy_recovery("G_plaquette"*string(d)*".txt", d, d+1, fault_list[2], 100)
+    
+    display("Matching")
+    display(fault_edges_plaquette)
+    display(fault_edges_vertex)
 
     error_x::Vector{Int64} = []
     error_z::Vector{Int64} = []
@@ -899,6 +940,9 @@ function main(d::Int64, noise::Float64)
         append!(error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
     end
 
+    display("Error")
+    display(error_x)
+    display(error_z)
     apply_recovery(QS, error_x, error_z)
     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
     for i in x_ancilla_list
@@ -908,20 +952,28 @@ function main(d::Int64, noise::Float64)
     for i in z_ancilla_list
         final_measurement_values[2,i] = measure!(QS, i)
     end
+    
+   writedlm("measurement.csv", transpose(measurement_values), ',')
 
     for i = 1:total_qubits
         final_measurement_values[1,i] = measurement_values[1,i]
         last_measurement[1,i] = measurement_values[1,i]
     end
 
+    writedlm("final_measurement.csv", transpose(final_measurement_values), ',')
     # Generate faults from the measurement value of initial and final cycle. Tuple containing x and z ancilla
     final_fault_list = generate_fault_nodes(d, final_measurement_values, x_ancilla_list, z_ancilla_list)
+    display("Fault")
+    display(final_fault_list)
 
     # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
     fault_search = pyimport("fault_search")
     fault_edges_vertex = fault_search.ideal_recovery("G_vertex"*string(d)*".txt", d, final_fault_list[1], 100)
     fault_edges_plaquette = fault_search.ideal_recovery("G_plaquette"*string(d)*".txt", d, final_fault_list[2], 100)
+    display("Matching")
+    display(fault_edges_plaquette)
+    display(fault_edges_vertex)
 
     final_error_x::Vector{Int64} = []
     final_error_z::Vector{Int64} = []
@@ -934,6 +986,9 @@ function main(d::Int64, noise::Float64)
         append!(final_error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
     end
 
+    display("Error")
+    display(final_error_x)
+    display(final_error_z)
     apply_recovery(QS, final_error_x, final_error_z)
     ancilla_reset(QS, final_measurement_values[2,:])
     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
@@ -944,37 +999,36 @@ function main(d::Int64, noise::Float64)
     for i in z_ancilla_list
         last_measurement[2,i] = measure!(QS, i)
     end
-
+    writedlm("last_measurement.csv", transpose(last_measurement), ',')
     final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    display(final_code_state)
     return final_code_state
+
 end
 
 function run()
     # main(3)
     logical_error_list::Vector{Float64} = []
-    physical_error_list = range(0.002, 0.002, length = 1)
+    physical_error_list = range(0.01, 0.001, length = 10)
     for j in physical_error_list
         count::Int64 = 0
-        # trials::Int64 = 0
-        # threshold = 10000*j
-        # while count < threshold
-        for i = 1:1000
-            # trials += i
-            display(i)
-            count += main(7, j)
+        trials::Int64 = 0
+        threshold = 10000*j
+        while count < threshold
+            if main(3, j) == 1
+                count += 1
+            end
+            trials += 1
         end
-        # display(j)
-        # display(count/trials)
-        display(count)
+        display(j)
+        display(count/trials)
     end
 end
 
 function check()
     count::Int64 = 0
-    for i = 1:1000
-        display(i)
-        count += main(3, 0.009)
+    for i = 1:100
+        count += main(5, 0.01)
     end
     display(count)
 end
-
