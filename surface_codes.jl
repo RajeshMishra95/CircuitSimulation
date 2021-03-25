@@ -627,6 +627,60 @@ function commutation_check(stablilizers::Array{Int64,2}, d::Int64)
     return remaining_stabilizers[end,end]
 end
 
+function find_logical_state(QS::QuantumState, d::Int64)
+    """
+    This function calculates the logical state of the surface code.
+    """
+    total_qubits::Int64 = (2*d-1)^2
+    anti_comm_stabilizer::Vector{Int64} = []
+    # Initialize the Z-logical operator
+    x_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
+    for i = 1:d
+        x_logical[1+2*(2*d-1)*(i-1)] = 1
+    end
+
+    # Find the destabilizers that do not commute with the Z-logical operator
+    for i = 1:total_qubits
+        if length(findall(x -> x == 1, 
+            x_logical[1:total_qubits].*QS.tableau[i,total_qubits+1:2*total_qubits]))%2 == 1
+            append!(anti_comm_stabilizer, i)
+        end
+    end
+    # Rowsum the corresponding stabilizers with the last row 
+    QS.tableau = vcat(QS.tableau, zeros(Int64,1,2*QS.qubits+1))
+    for j in anti_comm_stabilizer
+        rowsum!(QS, 2*QS.qubits+1, j+QS.qubits) 
+    end
+    return QS.tableau[end,end]
+end
+
+# function find_logical_state(QS::QuantumState, d::Int64)
+#     """
+#     This function calculates the logical state of the surface code.
+#     """
+#     total_qubits::Int64 = (2*d-1)^2
+#     anti_comm_stabilizer::Vector{Int64} = []
+#     # Initialize the Z-logical operator
+#     z_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
+#     for i = 1:d
+#         z_logical[QS.qubits + 1+2*(i-1)] = 1
+#     end
+
+#     # Find the destabilizers that do not commute with the Z-logical operator
+#     for i = 1:total_qubits
+#         if length(findall(x -> x == 1, 
+#             z_logical[total_qubits+1:2*total_qubits].*QS.tableau[i,1:total_qubits]))%2 == 1
+#             append!(anti_comm_stabilizer, i)
+#         end
+#     end
+#     # Rowsum the corresponding stabilizers with the last row 
+#     QS.tableau = vcat(QS.tableau, zeros(Int64,1,2*QS.qubits+1))
+#     for j in anti_comm_stabilizer
+#         rowsum!(QS, 2*QS.qubits+1, j+QS.qubits) 
+#     end
+#     return QS.tableau[end,end]
+# end
+
 # Recovery Section
 function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
     fault_edge::Vector{Int64})
@@ -838,6 +892,11 @@ function main(d::Int64, noise::Float64)
     x_ancilla_list::Vector{Int64} = generate_x_ancillas(d, total_qubits)
     z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)
 
+    # Only for measuring z-logical errors
+    for i in data_qubits_list
+        apply_h!(QS, i)
+    end
+
     ghost_nodes::Vector{Int64} = [0]
     for i = 1:d
         append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
@@ -857,10 +916,13 @@ function main(d::Int64, noise::Float64)
     ancilla_reset(QS, measurement_values[1,:])
 
     # Find the logical state of the surface code
-    initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    # initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    # display("Initial logical state")
+    # display(find_logical_state(deepcopy(QS), d))
 
     # Quasi-probability distribution -> cumulative density function
     quasi_prob::Vector{Float64} = [1-noise, noise/3, noise/3, noise/3]
+    # quasi_prob::Vector{Float64} = [0.5*(1-noise) + 0.5*sqrt(1-noise), 0.5*(1-noise) - 0.5*sqrt(1-noise), noise]
     cdf::Array{Float64,1} = probDistribution(quasi_prob)
 
     
@@ -881,12 +943,18 @@ function main(d::Int64, noise::Float64)
 
     # Generate faults from the measurement values of d cycles. Tuple containing x and z ancilla
     fault_list = generate_fault_nodes(d, measurement_values, x_ancilla_list, z_ancilla_list)
+    # display("Fault")
+    # display(fault_list)
 
     # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
     fault_search = pyimport("fault_search")
     fault_edges_vertex = fault_search.noisy_recovery("G_vertex"*string(d)*".txt", d, d+1, fault_list[1], 100)
     fault_edges_plaquette = fault_search.noisy_recovery("G_plaquette"*string(d)*".txt", d, d+1, fault_list[2], 100)
+    
+    # display("Matching")
+    # display(fault_edges_plaquette)
+    # display(fault_edges_vertex)
 
     error_x::Vector{Int64} = []
     error_z::Vector{Int64} = []
@@ -899,6 +967,9 @@ function main(d::Int64, noise::Float64)
         append!(error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
     end
 
+    # display("Error")
+    # display(error_x)
+    # display(error_z)
     apply_recovery(QS, error_x, error_z)
     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
     for i in x_ancilla_list
@@ -908,20 +979,28 @@ function main(d::Int64, noise::Float64)
     for i in z_ancilla_list
         final_measurement_values[2,i] = measure!(QS, i)
     end
+    
+    writedlm("measurement.csv", transpose(measurement_values), ',')
 
     for i = 1:total_qubits
         final_measurement_values[1,i] = measurement_values[1,i]
         last_measurement[1,i] = measurement_values[1,i]
     end
 
+    writedlm("final_measurement.csv", transpose(final_measurement_values), ',')
     # Generate faults from the measurement value of initial and final cycle. Tuple containing x and z ancilla
     final_fault_list = generate_fault_nodes(d, final_measurement_values, x_ancilla_list, z_ancilla_list)
+    # display("Fault")
+    # display(final_fault_list)
 
     # Find the most likely faults by using the shortest path and minimum weight matching algorithms
     pushfirst!(PyVector(pyimport("sys")."path"), "")
     fault_search = pyimport("fault_search")
     fault_edges_vertex = fault_search.ideal_recovery("G_vertex"*string(d)*".txt", d, final_fault_list[1], 100)
     fault_edges_plaquette = fault_search.ideal_recovery("G_plaquette"*string(d)*".txt", d, final_fault_list[2], 100)
+    # display("Matching")
+    # display(fault_edges_plaquette)
+    # display(fault_edges_vertex)
 
     final_error_x::Vector{Int64} = []
     final_error_z::Vector{Int64} = []
@@ -934,6 +1013,9 @@ function main(d::Int64, noise::Float64)
         append!(final_error_z, find_z_error_qubits(d, connections, x_ancilla_list, fault_edges_vertex, ghost_nodes))
     end
 
+    # display("Error")
+    # display(final_error_x)
+    # display(final_error_z)
     apply_recovery(QS, final_error_x, final_error_z)
     ancilla_reset(QS, final_measurement_values[2,:])
     measurement_circuit!(QS, d, connections, x_ancilla_list, z_ancilla_list) 
@@ -944,34 +1026,41 @@ function main(d::Int64, noise::Float64)
     for i in z_ancilla_list
         last_measurement[2,i] = measure!(QS, i)
     end
+    writedlm("last_measurement.csv", transpose(last_measurement), ',')
+    final_code_state::Int64 = find_logical_state(deepcopy(QS), d)
+    # final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    # display(final_code_state)
 
-    final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
-    return final_code_state
+    # I, J, V = findnz(sparse(QS.tableau))
+    # df = DataFrame([:I => I, :J => J])
+    # # df = DataFrame([:I => I, :J => J, :V => V])
+    # CSV.write("stabilizer.csv", df)
+    # return final_code_state
 end
 
 function run()
     # main(3)
     logical_error_list::Vector{Float64} = []
-    physical_error_list = range(0.002, 0.002, length = 1)
+    physical_error_list = range(0.002, 0.003, length = 2)
     for j in physical_error_list
+        display(j)
         count::Int64 = 0
-        # trials::Int64 = 0
-        # threshold = 10000*j
-        # while count < threshold
-        for i = 1:1000
-            # trials += i
-            display(i)
-            count += main(7, j)
+        trials::Int64 = 0
+        threshold = 200
+        while count < threshold
+            if main(5, j) == 1
+                count += 1
+                # display(count)
+            end
+            trials += 1
         end
-        # display(j)
-        # display(count/trials)
-        display(count)
+        display(count/trials)
     end
 end
 
 function check()
     count::Int64 = 0
-    for i = 1:1000
+    for i = 1:1
         display(i)
         count += main(3, 0.009)
     end
