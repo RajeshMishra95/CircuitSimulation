@@ -253,25 +253,25 @@ function generate_z_ancillas(d::Int64, total_qubits::Int64)
     return z_ancillas
 end
 
-# function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
-#     """Amplitude Damping"""
-#     if gate == 2
-#         apply_z!(QS, qubit)
-#     elseif gate == 3
-#         apply_Rz!(QS, qubit)
-#     end
-# end
-
 function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
-    """Pauli noise"""
+    """Amplitude Damping"""
     if gate == 2
-        apply_x!(QS, qubit)
-    elseif gate == 3
-        apply_y!(QS, qubit)
-    elseif gate == 4
         apply_z!(QS, qubit)
+    elseif gate == 3
+        apply_Rz!(QS, qubit)
     end
 end
+
+# function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
+#     """Pauli noise"""
+#     if gate == 2
+#         apply_x!(QS, qubit)
+#     elseif gate == 3
+#         apply_y!(QS, qubit)
+#     elseif gate == 4
+#         apply_z!(QS, qubit)
+#     end
+# end
 
 function prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64})
     for i in x_ancilla_list
@@ -627,33 +627,6 @@ function commutation_check(stablilizers::Array{Int64,2}, d::Int64)
     return remaining_stabilizers[end,end]
 end
 
-function find_logical_state(QS::QuantumState, d::Int64)
-    """
-    This function calculates the logical state of the surface code.
-    """
-    total_qubits::Int64 = (2*d-1)^2
-    anti_comm_stabilizer::Vector{Int64} = []
-    # Initialize the Z-logical operator
-    x_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
-    for i = 1:d
-        x_logical[1+2*(2*d-1)*(i-1)] = 1
-    end
-
-    # Find the destabilizers that do not commute with the Z-logical operator
-    for i = 1:total_qubits
-        if length(findall(x -> x == 1, 
-            x_logical[1:total_qubits].*QS.tableau[i,total_qubits+1:2*total_qubits]))%2 == 1
-            append!(anti_comm_stabilizer, i)
-        end
-    end
-    # Rowsum the corresponding stabilizers with the last row 
-    QS.tableau = vcat(QS.tableau, zeros(Int64,1,2*QS.qubits+1))
-    for j in anti_comm_stabilizer
-        rowsum!(QS, 2*QS.qubits+1, j+QS.qubits) 
-    end
-    return QS.tableau[end,end]
-end
-
 # function find_logical_state(QS::QuantumState, d::Int64)
 #     """
 #     This function calculates the logical state of the surface code.
@@ -661,15 +634,15 @@ end
 #     total_qubits::Int64 = (2*d-1)^2
 #     anti_comm_stabilizer::Vector{Int64} = []
 #     # Initialize the Z-logical operator
-#     z_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
+#     x_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
 #     for i = 1:d
-#         z_logical[QS.qubits + 1+2*(i-1)] = 1
+#         x_logical[1+2*(2*d-1)*(i-1)] = 1
 #     end
 
 #     # Find the destabilizers that do not commute with the Z-logical operator
 #     for i = 1:total_qubits
 #         if length(findall(x -> x == 1, 
-#             z_logical[total_qubits+1:2*total_qubits].*QS.tableau[i,1:total_qubits]))%2 == 1
+#             x_logical[1:total_qubits].*QS.tableau[i,total_qubits+1:2*total_qubits]))%2 == 1
 #             append!(anti_comm_stabilizer, i)
 #         end
 #     end
@@ -680,6 +653,33 @@ end
 #     end
 #     return QS.tableau[end,end]
 # end
+
+function find_logical_state(QS::QuantumState, d::Int64)
+    """
+    This function calculates the logical state of the surface code.
+    """
+    total_qubits::Int64 = (2*d-1)^2
+    anti_comm_stabilizer::Vector{Int64} = []
+    # Initialize the Z-logical operator
+    z_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
+    for i = 1:d
+        z_logical[QS.qubits + 1+2*(i-1)] = 1
+    end
+
+    # Find the destabilizers that do not commute with the Z-logical operator
+    for i = 1:total_qubits
+        if length(findall(x -> x == 1, 
+            z_logical[total_qubits+1:2*total_qubits].*QS.tableau[i,1:total_qubits]))%2 == 1
+            append!(anti_comm_stabilizer, i)
+        end
+    end
+    # Rowsum the corresponding stabilizers with the last row 
+    QS.tableau = vcat(QS.tableau, zeros(Int64,1,2*QS.qubits+1))
+    for j in anti_comm_stabilizer
+        rowsum!(QS, 2*QS.qubits+1, j+QS.qubits) 
+    end
+    return QS.tableau[end,end]
+end
 
 # Recovery Section
 function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
@@ -893,9 +893,9 @@ function main(d::Int64, noise::Float64)
     z_ancilla_list::Vector{Int64} = generate_z_ancillas(d, total_qubits)
 
     # Only for measuring z-logical errors
-    for i in data_qubits_list
-        apply_h!(QS, i)
-    end
+    # for i in data_qubits_list
+    #     apply_h!(QS, i)
+    # end
 
     ghost_nodes::Vector{Int64} = [0]
     for i = 1:d
@@ -916,13 +916,13 @@ function main(d::Int64, noise::Float64)
     ancilla_reset(QS, measurement_values[1,:])
 
     # Find the logical state of the surface code
-    # initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    initial_code_state::Int64 = find_logical_state(deepcopy(QS), d)
     # display("Initial logical state")
     # display(find_logical_state(deepcopy(QS), d))
 
     # Quasi-probability distribution -> cumulative density function
-    quasi_prob::Vector{Float64} = [1-noise, noise/3, noise/3, noise/3]
-    # quasi_prob::Vector{Float64} = [0.5*(1-noise) + 0.5*sqrt(1-noise), 0.5*(1-noise) - 0.5*sqrt(1-noise), noise]
+    # quasi_prob::Vector{Float64} = [1-noise, noise/3, noise/3, noise/3]
+    quasi_prob::Vector{Float64} = [0.5*(1-noise) + 0.5*sqrt(1-noise), 0.5*(1-noise) - 0.5*sqrt(1-noise), noise]
     cdf::Array{Float64,1} = probDistribution(quasi_prob)
 
     
@@ -1036,34 +1036,46 @@ function main(d::Int64, noise::Float64)
     # # df = DataFrame([:I => I, :J => J, :V => V])
     # CSV.write("stabilizer.csv", df)
     # return final_code_state
+    return xor(initial_code_state,final_code_state)
 end
 
 function run()
     # main(3)
     logical_error_list::Vector{Float64} = []
-    physical_error_list = range(0.002, 0.003, length = 2)
+    physical_error_list = range(0.003, 0.003, length = 10)
+    @time begin
     for j in physical_error_list
-        display(j)
+        println(j)
         count::Int64 = 0
-        trials::Int64 = 0
-        threshold = 200
-        while count < threshold
-            if main(5, j) == 1
+        # trials::Int64 = 0
+        # threshold = 200
+        # while count < threshold
+        #     if main(5, j) == 1
+        #         count += 1
+        #         # display(count)
+        #     end
+        #     trials += 1
+        # end
+        for i = 1:100
+            if main(3,j) == 1
                 count += 1
-                # display(count)
             end
-            trials += 1
         end
-        display(count/trials)
+        append!(logical_error_list , count/100)
+    end
+    display(mean(logical_error_list))
+    display(std(logical_error_list))
     end
 end
 
 function check()
     count::Int64 = 0
-    for i = 1:1
-        display(i)
-        count += main(3, 0.009)
+    l = [0.01, 0.009, 0.008, 0.007, 0.006, 0.005, 0.004, 0.003, 0.002, 0.001]
+    for j in l
+        count = 0
+        for i = 1:10000
+            count += main(5, j)
+        end
+        display(count)
     end
-    display(count)
 end
-

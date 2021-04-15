@@ -257,25 +257,25 @@ function generate_z_ancillas(d::Int64, total_qubits::Int64)
     return z_ancillas
 end
 
-function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
-    """Amplitude Damping"""
-    if gate == 2
-        apply_z!(QS, qubit)
-    elseif gate == 3
-        apply_Rz!(QS, qubit)
-    end
-end
-
 # function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
-#     """Pauli noise"""
+#     """Amplitude Damping"""
 #     if gate == 2
-#         apply_x!(QS, qubit)
-#     elseif gate == 3
-#         apply_y!(QS, qubit)
-#     elseif gate == 4
 #         apply_z!(QS, qubit)
+#     elseif gate == 3
+#         apply_Rz!(QS, qubit)
 #     end
 # end
+
+function gateOperation!(QS::QuantumState, gate::Int64, qubit::Int64)
+    """Pauli noise"""
+    if gate == 2
+        apply_x!(QS, qubit)
+    elseif gate == 3
+        apply_y!(QS, qubit)
+    elseif gate == 4
+        apply_z!(QS, qubit)
+    end
+end
 
 function prep_x_ancillas!(QS::QuantumState, x_ancilla_list::Vector{Int64})
     for i in x_ancilla_list
@@ -663,25 +663,25 @@ function commutation_check(stablilizers::Array{Int64,2}, d::Int64)
     end    
 
     return remaining_stabilizers[end,end]
-    # return remaining_stabilizers
 end
 
 function find_logical_state(QS::QuantumState, d::Int64)
     """
-    This function calculates the logical state of the surface code.
+    This function calculates the logical state of the surface code. This is used when
+    the data qubits are initialized in the |+> state.
     """
     total_qubits::Int64 = (2*d-1)^2
     anti_comm_stabilizer::Vector{Int64} = []
-    # Initialize the Z-logical operator
-    z_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
+    # Initialize the X-logical operator
+    x_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
     for i = 1:d
-        z_logical[QS.qubits + 1+2*(i-1)] = 1
+        x_logical[1+2*(2*d-1)*(i-1)] = 1
     end
 
-    # Find the destabilizers that do not commute with the Z-logical operator
+    # Find the destabilizers that do not commute with the X-logical operator
     for i = 1:total_qubits
         if length(findall(x -> x == 1, 
-            z_logical[total_qubits+1:2*total_qubits].*QS.tableau[i,1:total_qubits]))%2 == 1
+            x_logical[1:total_qubits].*QS.tableau[i,total_qubits+1:2*total_qubits]))%2 == 1
             append!(anti_comm_stabilizer, i)
         end
     end
@@ -692,6 +692,34 @@ function find_logical_state(QS::QuantumState, d::Int64)
     end
     return QS.tableau[end,end]
 end
+
+# function find_logical_state(QS::QuantumState, d::Int64)
+#     """
+#     This function calculates the logical state of the surface code. This is used when 
+#     the data qubits are initialized in the |0> state.
+#     """
+#     total_qubits::Int64 = (2*d-1)^2
+#     anti_comm_stabilizer::Vector{Int64} = []
+#     # Initialize the Z-logical operator
+#     z_logical::Vector{Int64} = zeros(Int64, 2*total_qubits + 1)
+#     for i = 1:d
+#         z_logical[QS.qubits + 1+2*(i-1)] = 1
+#     end
+
+#     # Find the destabilizers that do not commute with the Z-logical operator
+#     for i = 1:total_qubits
+#         if length(findall(x -> x == 1, 
+#             z_logical[total_qubits+1:2*total_qubits].*QS.tableau[i,1:total_qubits]))%2 == 1
+#             append!(anti_comm_stabilizer, i)
+#         end
+#     end
+#     # Rowsum the corresponding stabilizers with the last row 
+#     QS.tableau = vcat(QS.tableau, zeros(Int64,1,2*QS.qubits+1))
+#     for j in anti_comm_stabilizer
+#         rowsum!(QS, 2*QS.qubits+1, j+QS.qubits) 
+#     end
+#     return QS.tableau[end,end]
+# end
 
 # Recovery Section
 function find_data_qubit_z(d::Int64, surface_code_lattice::Dict, x_ancilla_list::Vector{Int64}, 
@@ -909,8 +937,7 @@ function main(d::Int64, noise::Float64)
     for i in data_qubits_list
         apply_h!(QS, i)
     end
-    display(QS.tableau)
-"""
+
     ghost_nodes::Vector{Int64} = [0]
     for i = 1:d
         append!(ghost_nodes, range((i-1)*d*(d+1) + d*(d-1) + 1, i*d*(d+1), step=1))
@@ -930,14 +957,15 @@ function main(d::Int64, noise::Float64)
     ancilla_reset(QS, measurement_values[1,:])
 
     # Find the logical state of the surface code
-    initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
+    # initial_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
     display("Initial logical state")
+    # display(initial_code_state)
+    initial_code_state::Int64 = find_logical_state(deepcopy(QS), d)
     display(initial_code_state)
-    display(find_logical_state(deepcopy(QS), d))
-
+    
     # Quasi-probability distribution -> cumulative density function
-    # quasi_prob::Vector{Float64} = [1-noise, noise/3, noise/3, noise/3]
-    quasi_prob::Vector{Float64} = [0.5*(1-noise) + 0.5*sqrt(1-noise), 0.5*(1-noise) - 0.5*sqrt(1-noise), noise]
+    quasi_prob::Vector{Float64} = [1-noise, noise/3, noise/3, noise/3]
+    # quasi_prob::Vector{Float64} = [0.5*(1-noise) + 0.5*sqrt(1-noise), 0.5*(1-noise) - 0.5*sqrt(1-noise), noise]
     cdf::Array{Float64,1} = probDistribution(quasi_prob)
 
     
@@ -1046,24 +1074,26 @@ function main(d::Int64, noise::Float64)
     # final_code_state::Int64 = commutation_check(distill_stabilizers(deepcopy(QS), d), d)
     # display(final_code_state)
 
-    I, J, V = findnz(sparse(QS.tableau))
-    df = DataFrame([:I => I, :J => J])
-    # df = DataFrame([:I => I, :J => J, :V => V])
-    CSV.write("stabilizer.csv", df)
-    return final_code_state
-"""
+    # I, J, V = findnz(sparse(QS.tableau))
+    # df = DataFrame([:I => I, :J => J])
+    # # df = DataFrame([:I => I, :J => J, :V => V])
+    # CSV.write("stabilizer.csv", df)
+    display(measurement_values)
+    display("final logical state")
+    display(final_code_state)
+    return xor(initial_code_state,final_code_state)
 end
 
 function run()
     # main(3)
     logical_error_list::Vector{Float64} = []
-    physical_error_list = range(0.01, 0.007, length = 4)
+    physical_error_list = range(0.002, 0.002, length = 1)
     for j in physical_error_list
         count::Int64 = 0
         trials::Int64 = 0
-        threshold = 50
+        threshold = 1
         while count < threshold
-            if main(3, j) == 1
+            if main(5, j) == 1
                 count += 1
             end
             trials += 1
@@ -1072,4 +1102,3 @@ function run()
         display(count/trials)
     end
 end
-
