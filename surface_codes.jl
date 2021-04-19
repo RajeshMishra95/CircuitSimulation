@@ -1070,12 +1070,15 @@ end
 
 function check()
     count::Int64 = 0
-    l = [0.01, 0.009, 0.008, 0.007, 0.006, 0.005, 0.004, 0.003, 0.002, 0.001]
-    for j in l
+    logical_error_list::Vector{Float64} = []
+    physical_error_list = range(0.002, 0.002, length = 10)
+    for j in physical_error_list
         count = 0
-        for i = 1:10000
-            count += main(5, j)
+        for i = 1:5000
+            count += main(3, j)
         end
-        display(count)
+        append!(logical_error_list, count/5000)
     end
+    display(mean(logical_error_list))
+    display(std(logical_error_list))
 end

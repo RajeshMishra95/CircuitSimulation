@@ -95,6 +95,7 @@ def amplitude_damping(gamma):
     K1 = np.array([[0, np.sqrt(gamma)], [0, 0]])
     ad_channel = pauli_transfer_matrix_channel([K0, K1])
     c = 16*[1] + 16*[0]
+    
     return ad_channel
 
 # print(pauli_transfer_matrix(np.array([[0, 1], [1, 0]])))
